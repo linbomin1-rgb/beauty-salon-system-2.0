@@ -1,0 +1,34 @@
+{
+  "name": "beauty-salon-system",
+  "version": "1.0.0",
+  "description": "美业管理系统 - 前后端一体化",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "vite",
+    "dev:server": "cd server && npm run dev",
+    "install:all": "npm install && cd server && npm install",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "vite build",
+    "build:server": "cd server && npm run build",
+    "start": "concurrently \"npm run start:server\" \"npm run start:client\"",
+    "start:client": "vite preview",
+    "start:server": "cd server && npm start",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "lucide-react": "^0.563.0",
+    "react-dom": "^19.2.4",
+    "@google/genai": "^1.39.0",
+    "react": "^19.2.4",
+    "recharts": "^3.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^8.2.2",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
