@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
+import { initDatabases, dualWriteService } from './services/dualWriteService.js';
 import staffRoutes from './routes/staff.js';
 import customerRoutes from './routes/customers.js';
 import appointmentRoutes from './routes/appointments.js';
@@ -12,6 +13,7 @@ import logRoutes from './routes/logs.js';
 import reminderRoutes from './routes/reminders.js';
 
 dotenv.config();
+initDatabases();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -26,6 +28,19 @@ app.use(express.urlencoded({ extended: true }));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/sync-status', (req, res) => {
+  const failedSyncs = dualWriteService.getSyncStatus();
+  res.json({
+    success: true,
+    data: {
+      dualWriteEnabled: process.env.DUAL_WRITE_ENABLED === 'true',
+      primaryDatabase: process.env.PRIMARY_DATABASE || 'supabase',
+      failedSyncCount: failedSyncs.length,
+      failedSyncs
+    }
+  });
 });
 
 app.use('/api/staff', staffRoutes);

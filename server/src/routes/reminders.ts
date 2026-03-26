@@ -1,25 +1,19 @@
 import { Router, Request, Response } from 'express';
-import { supabase } from '../config/supabase.js';
-import { memoryStore } from '../services/memoryStore.js';
+import dualWriteService from '../services/dualWriteService.js';
 import { StaffReminder, ApiResponse } from '../types/index.js';
 
 const router = Router();
-const useMemory = !supabase;
 
 router.get('/', async (req: Request, res: Response) => {
   try {
-    if (useMemory) {
-      return res.json({ success: true, data: memoryStore.getReminders() } as ApiResponse<StaffReminder[]>);
-    }
     const { staff_id, status, type } = req.query;
-    let query = supabase.from('staff_reminders').select('*').order('reminder_date', { ascending: true });
-
-    if (staff_id) query = query.eq('staff_id', staff_id);
-    if (status) query = query.eq('status', status);
-    if (type) query = query.eq('type', type);
-
-    const { data, error } = await query;
-    if (error) throw error;
+    const filters: any = {};
+    
+    if (staff_id) filters.staff_id = staff_id as string;
+    if (status) filters.status = status as string;
+    if (type) filters.type = type as string;
+    
+    const data = await dualWriteService.reminders.getAll(filters);
     res.json({ success: true, data } as ApiResponse<StaffReminder[]>);
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
@@ -28,19 +22,11 @@ router.get('/', async (req: Request, res: Response) => {
 
 router.post('/', async (req: Request, res: Response) => {
   try {
-    if (useMemory) {
-      const data = memoryStore.createReminder(req.body);
-      return res.status(201).json({ success: true, data, message: '提醒创建成功' } as ApiResponse<StaffReminder>);
+    const result = await dualWriteService.reminders.create(req.body);
+    if (!result.success) {
+      return res.status(500).json({ success: false, error: result.error } as ApiResponse<null>);
     }
-    const reminderData: Partial<StaffReminder> = {
-      ...req.body,
-      status: req.body.status || 'pending',
-      created_at: new Date().toISOString(),
-    };
-
-    const { data, error } = await supabase.from('staff_reminders').upsert([reminderData]).select().single();
-    if (error) throw error;
-    res.status(201).json({ success: true, data, message: '提醒创建成功' } as ApiResponse<StaffReminder>);
+    res.status(201).json({ success: true, data: result.data, message: '提醒创建成功' } as ApiResponse<StaffReminder>);
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
   }

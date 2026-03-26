@@ -27,8 +27,9 @@ class MemoryStore {
       name: data.name || '',
       role: data.role || '员工',
       password: data.password || '',
-      avatar: data.avatar || 'U',
-      permissions: data.permissions || ['dashboard', 'appts', 'customers'],
+      avatar: data.avatar || 'A',
+      permissions: data.permissions || [],
+      created_at: new Date().toISOString(),
     };
     this.staff.push(newStaff);
     return newStaff;
@@ -112,6 +113,7 @@ class MemoryStore {
       duration: data.duration || 1,
       status: data.status || 'pending',
       note: data.note,
+      created_at: new Date().toISOString(),
     };
     this.appointments.push(newAppointment);
     return newAppointment;
@@ -150,6 +152,7 @@ class MemoryStore {
       staff_id: data.staff_id,
       timestamp: new Date().toISOString(),
       is_revoked: false,
+      created_at: new Date().toISOString(),
     };
     this.transactions.push(newTransaction);
     return newTransaction;
@@ -205,6 +208,7 @@ class MemoryStore {
       timestamp: new Date().toISOString(),
       undo_data: data.undo_data,
       is_revoked: false,
+      created_at: new Date().toISOString(),
     };
     this.logs.push(newLog);
     return newLog;
