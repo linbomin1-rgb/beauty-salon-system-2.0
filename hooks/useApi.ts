@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api, { 
   Staff, Customer, Appointment, Transaction, Promotion, 
   CustomerCard, SystemLog, StaffReminder 
 } from '../services/api';
+
+const SYNC_INTERVAL = 3000;
 
 interface UseApiState<T> {
   data: T | null;
@@ -10,26 +12,40 @@ interface UseApiState<T> {
   error: string | null;
 }
 
+function useSyncTimer(callback: () => void, interval: number = SYNC_INTERVAL) {
+  const savedCallback = useRef(callback);
+  
+  useEffect(() => {
+    savedCallback.current = callback;
+  }, [callback]);
+  
+  useEffect(() => {
+    const id = setInterval(() => savedCallback.current(), interval);
+    return () => clearInterval(id);
+  }, [interval]);
+}
+
 export function useStaff() {
   const [state, setState] = useState<UseApiState<Staff[]>>({
-    data: null,
+    data: [],
     loading: true,
     error: null,
   });
 
   const fetchAll = useCallback(async () => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
     const response = await api.staff.getAll();
     if (response.success) {
       setState({ data: response.data || [], loading: false, error: null });
     } else {
-      setState({ data: null, loading: false, error: response.error || '获取员工列表失败' });
+      setState(prev => ({ ...prev, loading: false, error: response.error || '获取员工列表失败' }));
     }
   }, []);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useSyncTimer(fetchAll);
 
   const create = async (data: Partial<Staff>) => {
     const response = await api.staff.create(data);
@@ -64,24 +80,25 @@ export function useStaff() {
 
 export function useCustomers() {
   const [state, setState] = useState<UseApiState<Customer[]>>({
-    data: null,
+    data: [],
     loading: true,
     error: null,
   });
 
   const fetchAll = useCallback(async (params?: { search?: string; staff_id?: string }) => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
     const response = await api.customers.getAll(params);
     if (response.success) {
       setState({ data: response.data || [], loading: false, error: null });
     } else {
-      setState({ data: null, loading: false, error: response.error || '获取顾客列表失败' });
+      setState(prev => ({ ...prev, loading: false, error: response.error || '获取顾客列表失败' }));
     }
   }, []);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useSyncTimer(fetchAll);
 
   const create = async (data: Partial<Customer>) => {
     const response = await api.customers.create(data);
@@ -120,7 +137,7 @@ export function useCustomers() {
 
 export function useAppointments() {
   const [state, setState] = useState<UseApiState<Appointment[]>>({
-    data: null,
+    data: [],
     loading: true,
     error: null,
   });
@@ -132,18 +149,19 @@ export function useAppointments() {
     start_date?: string;
     end_date?: string;
   }) => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
     const response = await api.appointments.getAll(params);
     if (response.success) {
       setState({ data: response.data || [], loading: false, error: null });
     } else {
-      setState({ data: null, loading: false, error: response.error || '获取预约列表失败' });
+      setState(prev => ({ ...prev, loading: false, error: response.error || '获取预约列表失败' }));
     }
   }, []);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useSyncTimer(fetchAll);
 
   const create = async (data: Partial<Appointment>) => {
     const response = await api.appointments.create(data);
@@ -182,7 +200,7 @@ export function useAppointments() {
 
 export function useTransactions() {
   const [state, setState] = useState<UseApiState<Transaction[]>>({
-    data: null,
+    data: [],
     loading: true,
     error: null,
   });
@@ -195,18 +213,19 @@ export function useTransactions() {
     end_date?: string;
     payment_method?: string;
   }) => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
     const response = await api.transactions.getAll(params);
     if (response.success) {
       setState({ data: response.data || [], loading: false, error: null });
     } else {
-      setState({ data: null, loading: false, error: response.error || '获取交易列表失败' });
+      setState(prev => ({ ...prev, loading: false, error: response.error || '获取交易列表失败' }));
     }
   }, []);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useSyncTimer(fetchAll);
 
   const create = async (data: Partial<Transaction>) => {
     const response = await api.transactions.create(data);
@@ -233,24 +252,25 @@ export function useTransactions() {
 
 export function usePromotions() {
   const [state, setState] = useState<UseApiState<Promotion[]>>({
-    data: null,
+    data: [],
     loading: true,
     error: null,
   });
 
   const fetchAll = useCallback(async (active?: boolean) => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
     const response = await api.promotions.getAll(active);
     if (response.success) {
       setState({ data: response.data || [], loading: false, error: null });
     } else {
-      setState({ data: null, loading: false, error: response.error || '获取活动列表失败' });
+      setState(prev => ({ ...prev, loading: false, error: response.error || '获取活动列表失败' }));
     }
   }, []);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useSyncTimer(fetchAll);
 
   const create = async (data: Partial<Promotion>) => {
     const response = await api.promotions.create(data);
@@ -281,24 +301,25 @@ export function usePromotions() {
 
 export function useCustomerCards() {
   const [state, setState] = useState<UseApiState<CustomerCard[]>>({
-    data: null,
+    data: [],
     loading: true,
     error: null,
   });
 
   const fetchAll = useCallback(async (params?: { customer_id?: string; promotion_id?: string }) => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
     const response = await api.customerCards.getAll(params);
     if (response.success) {
       setState({ data: response.data || [], loading: false, error: null });
     } else {
-      setState({ data: null, loading: false, error: response.error || '获取活动卡列表失败' });
+      setState(prev => ({ ...prev, loading: false, error: response.error || '获取活动卡列表失败' }));
     }
   }, []);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useSyncTimer(fetchAll);
 
   const create = async (data: Partial<CustomerCard>) => {
     const response = await api.customerCards.create(data);
@@ -337,7 +358,7 @@ export function useCustomerCards() {
 
 export function useLogs() {
   const [state, setState] = useState<UseApiState<SystemLog[]>>({
-    data: null,
+    data: [],
     loading: true,
     error: null,
   });
@@ -349,18 +370,19 @@ export function useLogs() {
     end_date?: string;
     limit?: number;
   }) => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
     const response = await api.logs.getAll(params);
     if (response.success) {
       setState({ data: response.data || [], loading: false, error: null });
     } else {
-      setState({ data: null, loading: false, error: response.error || '获取日志列表失败' });
+      setState(prev => ({ ...prev, loading: false, error: response.error || '获取日志列表失败' }));
     }
   }, []);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useSyncTimer(fetchAll);
 
   const create = async (data: Partial<SystemLog>) => {
     return await api.logs.create(data);
@@ -379,24 +401,25 @@ export function useLogs() {
 
 export function useReminders() {
   const [state, setState] = useState<UseApiState<StaffReminder[]>>({
-    data: null,
+    data: [],
     loading: true,
     error: null,
   });
 
   const fetchAll = useCallback(async (params?: { staff_id?: string; status?: string; type?: string }) => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
     const response = await api.reminders.getAll(params);
     if (response.success) {
       setState({ data: response.data || [], loading: false, error: null });
     } else {
-      setState({ data: null, loading: false, error: response.error || '获取提醒列表失败' });
+      setState(prev => ({ ...prev, loading: false, error: response.error || '获取提醒列表失败' }));
     }
   }, []);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useSyncTimer(fetchAll);
 
   const create = async (data: Partial<StaffReminder>) => {
     const response = await api.reminders.create(data);

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { Staff, Customer, Appointment, Transaction, Promotion, CustomerCard, SystemLog, StaffReminder } from '../types/index.js';
 
 const dbPath = process.env.LOCAL_DB_PATH || './data/beauty-salon.json';
@@ -7,6 +8,10 @@ const dbDir = path.dirname(dbPath);
 
 if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
+}
+
+function generateUUID(): string {
+  return crypto.randomUUID();
 }
 
 interface LocalDatabase {
@@ -32,7 +37,7 @@ interface LocalDatabase {
 }
 
 let db: LocalDatabase = {
-  staff: [{ id: '1', name: 'admin', role: '总店长', password: 'admin', avatar: 'A', permissions: ['all'], created_at: new Date().toISOString() }],
+  staff: [{ id: generateUUID(), name: 'admin', role: '总店长', password: 'password', avatar: 'A', permissions: ['all'], created_at: new Date().toISOString() }],
   customers: [],
   appointments: [],
   transactions: [],
@@ -84,6 +89,16 @@ export const localDb = {
       saveDatabase();
       return db.staff[index];
     },
+    upsert: (data: Staff): Staff => {
+      const index = db.staff.findIndex(s => s.id === data.id);
+      if (index === -1) {
+        db.staff.push(data);
+      } else {
+        db.staff[index] = data;
+      }
+      saveDatabase();
+      return data;
+    },
     delete: (id: string): boolean => {
       const index = db.staff.findIndex(s => s.id === id);
       if (index === -1) return false;
@@ -110,6 +125,16 @@ export const localDb = {
       db.customers[index] = { ...db.customers[index], ...data };
       saveDatabase();
       return db.customers[index];
+    },
+    upsert: (data: Customer): Customer => {
+      const index = db.customers.findIndex(c => c.id === data.id);
+      if (index === -1) {
+        db.customers.push(data);
+      } else {
+        db.customers[index] = data;
+      }
+      saveDatabase();
+      return data;
     },
     delete: (id: string): boolean => {
       const index = db.customers.findIndex(c => c.id === id);
@@ -147,6 +172,16 @@ export const localDb = {
       saveDatabase();
       return db.appointments[index];
     },
+    upsert: (data: Appointment): Appointment => {
+      const index = db.appointments.findIndex(a => a.id === data.id);
+      if (index === -1) {
+        db.appointments.push(data);
+      } else {
+        db.appointments[index] = data;
+      }
+      saveDatabase();
+      return data;
+    },
     delete: (id: string): boolean => {
       const index = db.appointments.findIndex(a => a.id === id);
       if (index === -1) return false;
@@ -168,6 +203,16 @@ export const localDb = {
       db.transactions.push(data);
       saveDatabase();
       return data;
+    },
+    upsert: (data: Transaction): Transaction => {
+      const index = db.transactions.findIndex(t => t.id === data.id);
+      if (index === -1) {
+        db.transactions.push(data);
+      } else {
+        db.transactions[index] = data;
+      }
+      saveDatabase();
+      return data;
     }
   },
 
@@ -175,6 +220,16 @@ export const localDb = {
     getAll: (): Promotion[] => db.promotions,
     create: (data: Promotion): Promotion => {
       db.promotions.push(data);
+      saveDatabase();
+      return data;
+    },
+    upsert: (data: Promotion): Promotion => {
+      const index = db.promotions.findIndex(p => p.id === data.id);
+      if (index === -1) {
+        db.promotions.push(data);
+      } else {
+        db.promotions[index] = data;
+      }
       saveDatabase();
       return data;
     }
@@ -191,6 +246,16 @@ export const localDb = {
       db.customerCards.push(data);
       saveDatabase();
       return data;
+    },
+    upsert: (data: CustomerCard): CustomerCard => {
+      const index = db.customerCards.findIndex(c => c.id === data.id);
+      if (index === -1) {
+        db.customerCards.push(data);
+      } else {
+        db.customerCards[index] = data;
+      }
+      saveDatabase();
+      return data;
     }
   },
 
@@ -203,6 +268,16 @@ export const localDb = {
     },
     create: (data: SystemLog): SystemLog => {
       db.logs.push(data);
+      saveDatabase();
+      return data;
+    },
+    upsert: (data: SystemLog): SystemLog => {
+      const index = db.logs.findIndex(l => l.id === data.id);
+      if (index === -1) {
+        db.logs.push(data);
+      } else {
+        db.logs[index] = data;
+      }
       saveDatabase();
       return data;
     }
@@ -218,6 +293,16 @@ export const localDb = {
     },
     create: (data: StaffReminder): StaffReminder => {
       db.reminders.push(data);
+      saveDatabase();
+      return data;
+    },
+    upsert: (data: StaffReminder): StaffReminder => {
+      const index = db.reminders.findIndex(r => r.id === data.id);
+      if (index === -1) {
+        db.reminders.push(data);
+      } else {
+        db.reminders[index] = data;
+      }
       saveDatabase();
       return data;
     }

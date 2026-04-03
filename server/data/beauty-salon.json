@@ -1,0 +1,518 @@
+{
+  "staff": [
+    {
+      "id": "1",
+      "name": "admin",
+      "role": "总店长",
+      "password": "password",
+      "avatar": "A",
+      "permissions": [
+        "all"
+      ],
+      "created_at": "2026-03-31T08:42:35.058Z"
+    },
+    {
+      "id": "32199a08-1f70-47c4-a9f5-e14bcdb17369",
+      "name": "admin",
+      "role": "总店长",
+      "password": "password",
+      "avatar": "A",
+      "permissions": [
+        "all"
+      ],
+      "created_at": "2026-03-25T03:05:09.896383+00:00",
+      "updated_at": "2026-03-25T03:05:09.896383+00:00"
+    }
+  ],
+  "customers": [
+    {
+      "id": "dab3d2c1-8052-4702-aef7-5660c1b0e53c",
+      "name": "测试1",
+      "phone": "1333224442",
+      "balance": 300,
+      "remarks": "",
+      "gender": "female",
+      "birthday": "1988-07-01",
+      "source": "小红书",
+      "tags": [],
+      "assigned_staff_id": null,
+      "created_at": "2026-03-31T00:59:59.799+00:00",
+      "updated_at": "2026-03-31T01:00:03.206299+00:00"
+    },
+    {
+      "id": "423b2809-1b2b-4c68-ab47-aed108f34ada",
+      "name": "测试2",
+      "phone": "1433442334",
+      "balance": 300,
+      "remarks": "",
+      "gender": "female",
+      "birthday": "1999-08-09",
+      "source": "老客介绍",
+      "tags": [],
+      "assigned_staff_id": null,
+      "created_at": "2026-04-03T00:54:51.734+00:00",
+      "updated_at": "2026-04-03T00:54:52.007058+00:00"
+    },
+    {
+      "id": "7a9f1c28-24e1-4f15-9978-9739c037c2e9",
+      "name": "测试2",
+      "phone": "1433442334",
+      "balance": 300,
+      "remarks": "",
+      "gender": "female",
+      "birthday": "1999-08-09",
+      "source": "老客介绍",
+      "tags": [],
+      "assigned_staff_id": null,
+      "created_at": "2026-04-03T00:54:52.953+00:00",
+      "updated_at": "2026-04-03T00:54:53.016361+00:00"
+    },
+    {
+      "id": "8d124b9c-a830-4a71-aca5-7d8b5b49a041",
+      "name": "测试2",
+      "phone": "1433442334",
+      "balance": 300,
+      "remarks": "",
+      "gender": "female",
+      "birthday": "1999-08-09",
+      "source": "老客介绍",
+      "tags": [],
+      "assigned_staff_id": null,
+      "created_at": "2026-04-03T00:54:53.94+00:00",
+      "updated_at": "2026-04-03T00:54:54.006425+00:00"
+    },
+    {
+      "id": "79cfdb18-bbdc-4918-9dec-20c61cd69fec",
+      "name": "测试3",
+      "phone": "1443322334",
+      "balance": 300,
+      "remarks": "",
+      "gender": "female",
+      "birthday": "2009-05-02",
+      "source": "小红书",
+      "tags": [],
+      "assigned_staff_id": null,
+      "created_at": "2026-04-03T00:58:38.885+00:00",
+      "updated_at": "2026-04-03T00:58:39.413393+00:00"
+    }
+  ],
+  "appointments": [],
+  "transactions": [
+    {
+      "id": "a9d94556-71cc-4eee-a54b-7f3ec7b72685",
+      "type": "recharge",
+      "customer_id": "dab3d2c1-8052-4702-aef7-5660c1b0e53c",
+      "customer_name": "测试1",
+      "customer_card_id": null,
+      "promotion_name": null,
+      "original_amount": null,
+      "amount": 300,
+      "payment_method": "cash",
+      "item_name": "开卡充值",
+      "staff_id": "32199a08-1f70-47c4-a9f5-e14bcdb17369",
+      "timestamp": "2026-03-31T01:00:00.882+00:00",
+      "is_revoked": false,
+      "created_at": "2026-03-31T01:00:00.882+00:00"
+    },
+    {
+      "id": "aabeb9d2-4de8-4aba-956c-9989dc83f77c",
+      "type": "recharge",
+      "customer_id": "423b2809-1b2b-4c68-ab47-aed108f34ada",
+      "customer_name": "测试2",
+      "customer_card_id": null,
+      "promotion_name": null,
+      "original_amount": null,
+      "amount": 300,
+      "payment_method": "cash",
+      "item_name": "开卡充值",
+      "staff_id": "32199a08-1f70-47c4-a9f5-e14bcdb17369",
+      "timestamp": "2026-04-03T00:54:53.6+00:00",
+      "is_revoked": false,
+      "created_at": "2026-04-03T00:54:53.6+00:00"
+    },
+    {
+      "id": "5c221a7d-75f7-4bf0-b690-09a8da74175a",
+      "type": "recharge",
+      "customer_id": "7a9f1c28-24e1-4f15-9978-9739c037c2e9",
+      "customer_name": "测试2",
+      "customer_card_id": null,
+      "promotion_name": null,
+      "original_amount": null,
+      "amount": 300,
+      "payment_method": "cash",
+      "item_name": "开卡充值",
+      "staff_id": "32199a08-1f70-47c4-a9f5-e14bcdb17369",
+      "timestamp": "2026-04-03T00:54:54.83+00:00",
+      "is_revoked": false,
+      "created_at": "2026-04-03T00:54:54.83+00:00"
+    },
+    {
+      "id": "1c3e64fa-5069-4e33-aee3-cdfe7c08fb5d",
+      "type": "recharge",
+      "customer_id": "8d124b9c-a830-4a71-aca5-7d8b5b49a041",
+      "customer_name": "测试2",
+      "customer_card_id": null,
+      "promotion_name": null,
+      "original_amount": null,
+      "amount": 300,
+      "payment_method": "cash",
+      "item_name": "开卡充值",
+      "staff_id": "32199a08-1f70-47c4-a9f5-e14bcdb17369",
+      "timestamp": "2026-04-03T00:54:55.727+00:00",
+      "is_revoked": false,
+      "created_at": "2026-04-03T00:54:55.727+00:00"
+    },
+    {
+      "id": "7e30ca42-ef26-4de9-854b-e302f6099afb",
+      "type": "recharge",
+      "customer_id": "79cfdb18-bbdc-4918-9dec-20c61cd69fec",
+      "customer_name": "测试3",
+      "customer_card_id": null,
+      "promotion_name": null,
+      "original_amount": null,
+      "amount": 300,
+      "payment_method": "cash",
+      "item_name": "开卡充值",
+      "staff_id": "32199a08-1f70-47c4-a9f5-e14bcdb17369",
+      "timestamp": "2026-04-03T00:58:40.473+00:00",
+      "is_revoked": false,
+      "created_at": "2026-04-03T00:58:40.473+00:00"
+    }
+  ],
+  "promotions": [],
+  "customerCards": [],
+  "logs": [
+    {
+      "id": "19a62926-8199-45a6-b857-5c42af224cbd",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T00:59:04.504+00:00",
+      "created_at": "2026-03-31T00:59:04.504+00:00"
+    },
+    {
+      "id": "9ca097d8-e443-4ecc-b763-9d92071f3f8e",
+      "operator": "admin",
+      "action": "录入会员",
+      "detail": "测试1",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T01:00:01.415+00:00",
+      "created_at": "2026-03-31T01:00:01.415+00:00"
+    },
+    {
+      "id": "9f02f0c9-1085-4dd4-91a0-7002234c7d54",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T01:00:21.226+00:00",
+      "created_at": "2026-03-31T01:00:21.226+00:00"
+    },
+    {
+      "id": "29346194-cf28-4a1b-9db8-23e38fc418b0",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T01:00:30.433+00:00",
+      "created_at": "2026-03-31T01:00:30.433+00:00"
+    },
+    {
+      "id": "73621b39-752c-4843-82b8-9ea84047d3d4",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T01:00:38.135+00:00",
+      "created_at": "2026-03-31T01:00:38.135+00:00"
+    },
+    {
+      "id": "3f732c55-52b8-49b8-8014-3e441d0c31c4",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T01:05:57.205+00:00",
+      "created_at": "2026-03-31T01:05:57.205+00:00"
+    },
+    {
+      "id": "358152ce-dddc-42c2-bf00-84ab62f02b71",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T01:06:10.084+00:00",
+      "created_at": "2026-03-31T01:06:10.084+00:00"
+    },
+    {
+      "id": "e6278fc8-d2b1-4fbb-98fc-e2b5564f3f66",
+      "operator": "admin",
+      "action": "删除会员",
+      "detail": "????",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T01:06:32.619+00:00",
+      "created_at": "2026-03-31T01:06:32.619+00:00"
+    },
+    {
+      "id": "e381d9e3-b617-412d-9db0-266f91b65610",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T01:08:03.147+00:00",
+      "created_at": "2026-03-31T01:08:03.147+00:00"
+    },
+    {
+      "id": "1699bd2d-f3cf-404f-a5c0-199a693fb7fd",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T01:10:26.108+00:00",
+      "created_at": "2026-03-31T01:10:26.108+00:00"
+    },
+    {
+      "id": "7636ba4c-b839-4bd3-b1e7-57e46071e37f",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T01:11:10.725+00:00",
+      "created_at": "2026-03-31T01:11:10.725+00:00"
+    },
+    {
+      "id": "beaec58a-d60c-4d19-9be1-dbba3aeeedcf",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T03:14:32.568+00:00",
+      "created_at": "2026-03-31T03:14:32.568+00:00"
+    },
+    {
+      "id": "ea06443a-1756-4ae1-afdd-6eb5e89774ad",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T03:15:26.652+00:00",
+      "created_at": "2026-03-31T03:15:26.652+00:00"
+    },
+    {
+      "id": "53a38fed-671c-4d4f-a294-e98fcd476a9f",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T03:22:18.927+00:00",
+      "created_at": "2026-03-31T03:22:18.927+00:00"
+    },
+    {
+      "id": "0a02f1a1-d72f-4f95-b547-2007fe982bb4",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T03:22:32.411+00:00",
+      "created_at": "2026-03-31T03:22:32.411+00:00"
+    },
+    {
+      "id": "904542a7-4599-4bec-9f50-b0a23395cca8",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T05:51:47.339+00:00",
+      "created_at": "2026-03-31T05:51:47.339+00:00"
+    },
+    {
+      "id": "6b6c1180-869e-4203-a683-4b8e12cdcf73",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T05:52:04.952+00:00",
+      "created_at": "2026-03-31T05:52:04.952+00:00"
+    },
+    {
+      "id": "2af1986a-0d6c-482d-9b38-2a8d500370e8",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T06:07:57.139+00:00",
+      "created_at": "2026-03-31T06:07:57.139+00:00"
+    },
+    {
+      "id": "1cd3872a-f05b-42a3-b75d-ecf5d91d9ee9",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T06:23:38.634+00:00",
+      "created_at": "2026-03-31T06:23:38.634+00:00"
+    },
+    {
+      "id": "2520bc39-1e51-48ae-8e7a-124d5f9dbc95",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T06:23:38.588+00:00",
+      "created_at": "2026-03-31T06:23:38.588+00:00"
+    },
+    {
+      "id": "214564c8-1a17-4b51-beda-1b1633eca196",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T06:24:20.683+00:00",
+      "created_at": "2026-03-31T06:24:20.683+00:00"
+    },
+    {
+      "id": "8aa5e831-5b9e-40d7-8a99-2508117cc133",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T07:17:22.718+00:00",
+      "created_at": "2026-03-31T07:17:22.718+00:00"
+    },
+    {
+      "id": "941154ce-fc75-44b4-8fea-6ebc1e575cf3",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-03-31T07:17:33.582+00:00",
+      "created_at": "2026-03-31T07:17:33.582+00:00"
+    },
+    {
+      "id": "71c983d9-2c6e-4d4d-9256-ff13ac5e31dd",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-04-03T00:53:48.37+00:00",
+      "created_at": "2026-04-03T00:53:48.37+00:00"
+    },
+    {
+      "id": "5c4bc62c-58f3-4146-81e4-7c655e0057d3",
+      "operator": "admin",
+      "action": "录入会员",
+      "detail": "测试2",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-04-03T00:54:55.762+00:00",
+      "created_at": "2026-04-03T00:54:55.762+00:00"
+    },
+    {
+      "id": "b64ddd0a-8676-4027-9cf6-0be42b54034d",
+      "operator": "admin",
+      "action": "录入会员",
+      "detail": "测试2",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-04-03T00:54:56.642+00:00",
+      "created_at": "2026-04-03T00:54:56.642+00:00"
+    },
+    {
+      "id": "906fdb30-8396-4467-9547-ba00a980ea8c",
+      "operator": "admin",
+      "action": "录入会员",
+      "detail": "测试2",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-04-03T00:54:57.397+00:00",
+      "created_at": "2026-04-03T00:54:57.397+00:00"
+    },
+    {
+      "id": "84b0faad-f995-4918-bd73-dee485dc47c0",
+      "operator": "admin",
+      "action": "删除会员",
+      "detail": "测试2",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-04-03T00:55:08.033+00:00",
+      "created_at": "2026-04-03T00:55:08.033+00:00"
+    },
+    {
+      "id": "046d608b-e4a8-4e39-b70c-6225526bdf44",
+      "operator": "admin",
+      "action": "删除会员",
+      "detail": "测试2",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-04-03T00:55:21.362+00:00",
+      "created_at": "2026-04-03T00:55:21.362+00:00"
+    },
+    {
+      "id": "47147b1d-53f2-4f76-8d81-392eb46799e1",
+      "operator": "admin",
+      "action": "删除会员",
+      "detail": "测试2",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-04-03T00:55:29.079+00:00",
+      "created_at": "2026-04-03T00:55:29.079+00:00"
+    },
+    {
+      "id": "a0e4d43d-3abf-422a-bbe6-d70919670cf6",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-04-03T00:55:52.809+00:00",
+      "created_at": "2026-04-03T00:55:52.809+00:00"
+    },
+    {
+      "id": "34e6f420-da51-4661-863a-f58e01f13b38",
+      "operator": "admin",
+      "action": "录入会员",
+      "detail": "测试3",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-04-03T00:58:41.689+00:00",
+      "created_at": "2026-04-03T00:58:41.689+00:00"
+    },
+    {
+      "id": "dfbd6744-a18f-449f-b237-febc242d2580",
+      "operator": "系统",
+      "action": "登录",
+      "detail": "admin",
+      "undo_data": null,
+      "is_revoked": false,
+      "timestamp": "2026-04-03T00:58:56.154+00:00",
+      "created_at": "2026-04-03T00:58:56.154+00:00"
+    }
+  ],
+  "reminders": [],
+  "syncStatus": []
+}

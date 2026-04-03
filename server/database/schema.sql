@@ -165,7 +165,7 @@ VALUES (
   uuid_generate_v4(),
   'admin',
   '总店长',
-  'admin',
+  'password',
   'A',
   ARRAY['all']
 ) ON CONFLICT (id) DO NOTHING;
