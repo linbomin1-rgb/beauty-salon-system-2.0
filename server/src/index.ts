@@ -22,11 +22,27 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = parseInt(process.env.PORT || '3001', 10);
 const SYNC_INTERVAL = parseInt(process.env.SYNC_INTERVAL || '300000', 10);
 
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'https://beauty-salon.bobonas.online'],
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      'http://localhost:5173', 
+      'http://localhost:3000', 
+      'http://localhost:3001', 
+      'http://127.0.0.1:5173', 
+      'http://127.0.0.1:3000', 
+      'http://127.0.0.1:3001',
+      'https://beauty-salon.bobonas.online',
+      process.env.PUBLIC_URL
+    ].filter(Boolean);
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true);
+    }
+  },
   credentials: true,
 }));
 
@@ -111,9 +127,9 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 服务器运行在 http://localhost:${PORT}`);
-  console.log(`📡 API 端点: http://localhost:${PORT}/api`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 服务器运行在 http://0.0.0.0:${PORT}`);
+  console.log(`📡 API 端点: http://0.0.0.0:${PORT}/api`);
   
   if (process.env.DUAL_WRITE_ENABLED === 'true') {
     startAutoSync(SYNC_INTERVAL);

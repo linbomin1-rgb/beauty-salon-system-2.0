@@ -383,6 +383,9 @@ export const dualWriteService = {
         type: data.type || 'recharge',
         customer_id: data.customer_id || '',
         customer_name: data.customer_name || '',
+        customer_card_id: data.customer_card_id,
+        promotion_name: data.promotion_name,
+        original_amount: data.original_amount,
         amount: data.amount || 0,
         payment_method: data.payment_method || 'cash',
         item_name: data.item_name || '',
@@ -445,6 +448,41 @@ export const dualWriteService = {
           return data;
         }
       );
+    },
+
+    update: async (id: string, data: Partial<Promotion>): Promise<SyncResult> => {
+      return executeDualWrite(
+        'update',
+        'promotions',
+        { id, ...data },
+        () => {
+          const promotions = localDb.promotions.getAll();
+          const existing = promotions.find(p => p.id === id);
+          if (!existing) throw new Error('活动不存在');
+          const updated = { ...existing, ...data };
+          localDb.promotions.upsert(updated);
+          return updated;
+        },
+        async () => {
+          const { data: result, error } = await supabase!.from('promotions').update(data).eq('id', id).select().single();
+          if (error) throw error;
+          return result;
+        }
+      );
+    },
+
+    delete: async (id: string): Promise<SyncResult> => {
+      return executeDualWrite(
+        'delete',
+        'promotions',
+        { id },
+        () => localDb.promotions.delete(id),
+        async () => {
+          const { error } = await supabase!.from('promotions').delete().eq('id', id);
+          if (error) throw error;
+          return { id };
+        }
+      );
     }
   },
 
@@ -488,6 +526,41 @@ export const dualWriteService = {
           const { data, error } = await supabase!.from('customer_cards').insert([cardData]).select().single();
           if (error) throw error;
           return data;
+        }
+      );
+    },
+
+    update: async (id: string, data: Partial<CustomerCard>): Promise<SyncResult> => {
+      return executeDualWrite(
+        'update',
+        'customer_cards',
+        { id, ...data },
+        () => {
+          const card = localDb.customerCards.getAll().find(c => c.id === id);
+          if (card) {
+            Object.assign(card, data);
+            localDb.customerCards.upsert(card);
+          }
+          return { id };
+        },
+        async () => {
+          const { error } = await supabase!.from('customer_cards').update(data).eq('id', id);
+          if (error) throw error;
+          return { id };
+        }
+      );
+    },
+
+    delete: async (id: string): Promise<SyncResult> => {
+      return executeDualWrite(
+        'delete',
+        'customer_cards',
+        { id },
+        () => localDb.customerCards.delete(id),
+        async () => {
+          const { error } = await supabase!.from('customer_cards').delete().eq('id', id);
+          if (error) throw error;
+          return { id };
         }
       );
     }
@@ -536,6 +609,27 @@ export const dualWriteService = {
           return data;
         }
       );
+    },
+
+    revoke: async (id: string): Promise<SyncResult> => {
+      return executeDualWrite(
+        'update',
+        'system_logs',
+        { id, is_revoked: true },
+        () => {
+          const log = localDb.logs.getAll().find(l => l.id === id);
+          if (log) {
+            log.is_revoked = true;
+            localDb.logs.upsert(log);
+          }
+          return { id };
+        },
+        async () => {
+          const { error } = await supabase!.from('system_logs').update({ is_revoked: true }).eq('id', id);
+          if (error) throw error;
+          return { id };
+        }
+      );
     }
   },
 
@@ -550,6 +644,7 @@ export const dualWriteService = {
         if (filters?.staff_id) query = query.eq('staff_id', filters.staff_id);
         if (filters?.status) query = query.eq('status', filters.status);
         if (filters?.type) query = query.eq('type', filters.type);
+        query = query.limit(500);
         
         const { data, error } = await query;
         if (error) throw error;

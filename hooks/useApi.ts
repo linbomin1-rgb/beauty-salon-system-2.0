@@ -1,28 +1,13 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api, { 
   Staff, Customer, Appointment, Transaction, Promotion, 
   CustomerCard, SystemLog, StaffReminder 
 } from '../services/api';
 
-const SYNC_INTERVAL = 3000;
-
 interface UseApiState<T> {
   data: T | null;
   loading: boolean;
   error: string | null;
-}
-
-function useSyncTimer(callback: () => void, interval: number = SYNC_INTERVAL) {
-  const savedCallback = useRef(callback);
-  
-  useEffect(() => {
-    savedCallback.current = callback;
-  }, [callback]);
-  
-  useEffect(() => {
-    const id = setInterval(() => savedCallback.current(), interval);
-    return () => clearInterval(id);
-  }, [interval]);
 }
 
 export function useStaff() {
@@ -44,8 +29,6 @@ export function useStaff() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
-
-  useSyncTimer(fetchAll);
 
   const create = async (data: Partial<Staff>) => {
     const response = await api.staff.create(data);
@@ -97,8 +80,6 @@ export function useCustomers() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
-
-  useSyncTimer(fetchAll);
 
   const create = async (data: Partial<Customer>) => {
     const response = await api.customers.create(data);
@@ -161,9 +142,7 @@ export function useAppointments() {
     fetchAll();
   }, [fetchAll]);
 
-  useSyncTimer(fetchAll);
-
-  const create = async (data: Partial<Appointment>) => {
+  const create = async (data: Partial<Promotion>) => {
     const response = await api.appointments.create(data);
     if (response.success) {
       await fetchAll();
@@ -225,8 +204,6 @@ export function useTransactions() {
     fetchAll();
   }, [fetchAll]);
 
-  useSyncTimer(fetchAll);
-
   const create = async (data: Partial<Transaction>) => {
     const response = await api.transactions.create(data);
     if (response.success) {
@@ -269,8 +246,6 @@ export function usePromotions() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
-
-  useSyncTimer(fetchAll);
 
   const create = async (data: Partial<Promotion>) => {
     const response = await api.promotions.create(data);
@@ -318,8 +293,6 @@ export function useCustomerCards() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
-
-  useSyncTimer(fetchAll);
 
   const create = async (data: Partial<CustomerCard>) => {
     const response = await api.customerCards.create(data);
@@ -382,10 +355,12 @@ export function useLogs() {
     fetchAll();
   }, [fetchAll]);
 
-  useSyncTimer(fetchAll);
-
   const create = async (data: Partial<SystemLog>) => {
-    return await api.logs.create(data);
+    const response = await api.logs.create(data);
+    if (response.success) {
+      await fetchAll();
+    }
+    return response;
   };
 
   const revoke = async (id: string) => {
@@ -407,7 +382,8 @@ export function useReminders() {
   });
 
   const fetchAll = useCallback(async (params?: { staff_id?: string; status?: string; type?: string }) => {
-    const response = await api.reminders.getAll(params);
+    const fetchParams = { ...params, status: params?.status || 'pending' };
+    const response = await api.reminders.getAll(fetchParams);
     if (response.success) {
       setState({ data: response.data || [], loading: false, error: null });
     } else {
@@ -418,8 +394,6 @@ export function useReminders() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
-
-  useSyncTimer(fetchAll);
 
   const create = async (data: Partial<StaffReminder>) => {
     const response = await api.reminders.create(data);

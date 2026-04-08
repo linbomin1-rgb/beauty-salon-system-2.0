@@ -9,7 +9,7 @@ import {
   ArrowUpCircle, ArrowDownCircle, CreditCard, Banknote, ShieldCheck,
   ChevronLeft, ChevronRight, Info, UserCheck, X, Filter, PlayCircle, PlusCircle,
   Edit3, Download, UserCircle, ReceiptText, Clock, Wallet, Shield, PlusSquare, ChevronDown, Undo2, AlertTriangle, User, Zap, TrendingUp, UserPlus2, Eye, History as HistoryIcon,
-  Minimize2, Maximize2, MousePointer2, MessageSquareText, Cake, BellOff, Gift, Tag
+  Minimize2, Maximize2, MousePointer2, MessageSquareText, Cake, BellOff, Gift, Tag, AlertCircle
 } from 'lucide-react';
 import { Staff, Customer, Appointment, Transaction, SystemLog, Role, Promotion, CustomerCard, StaffReminder } from './types';
 import { analyzeBusinessData } from './services/geminiService';
@@ -178,6 +178,8 @@ const App: React.FC = () => {
   const [modalStack, setModalStack] = useState<string[]>([]);
   const [customAlert, setCustomAlert] = useState<{ message: string; title?: string } | null>(null);
   const [customConfirm, setCustomConfirm] = useState<{ message: string; title?: string; onConfirm: () => void } | null>(null);
+  const [isConfirmLoading, setIsConfirmLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const openModal = (modalId: string) => {
     if (isModalOpen) {
@@ -347,22 +349,34 @@ const App: React.FC = () => {
     return () => { document.body.style.overflow = ''; };
   }, [isModalOpen, revokingLog, selectedAppt, selectedPromoId]);
 
+  // --- 过滤掉admin账号的员工列表（用于预约表） ---
+  const scheduleStaff = useMemo(() => staff.filter(s => s.name.toLowerCase() !== 'admin'), [staff]);
+
   // --- 统计计算 ---
   const stats = useMemo(() => {
     const todayStr = new Date().toDateString();
     const todayTrans = transactions.filter(t => new Date(t.timestamp).toDateString() === todayStr && !t.is_revoked);
+    const monthTrans = transactions.filter(t => {
+      const tDate = new Date(t.timestamp);
+      const now = new Date();
+      return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear() && !t.is_revoked;
+    });
 
     const cashIncome = todayTrans.reduce((sum, t) => (t.type === 'consume' && t.payment_method !== 'balance' && t.payment_method !== 'promotion_card') ? sum + (t.amount || 0) : sum, 0);
     const rechargeIncome = todayTrans.reduce((sum, t) => t.type === 'recharge' ? sum + (t.amount || 0) : sum, 0);
     const consumption = todayTrans.reduce((sum, t) => t.type === 'consume' && (t.payment_method === 'balance' || t.payment_method === 'promotion_card') ? sum + (t.amount || 0) : sum, 0);
-    const monthlyRevenue = transactions.filter(t => new Date(t.timestamp).getMonth() === new Date().getMonth() && !t.is_revoked).reduce((sum, t) => (t.type === 'recharge' || (t.type === 'consume' && t.payment_method !== 'balance' && t.payment_method !== 'promotion_card')) ? sum + (t.amount || 0) : sum, 0);
+    const todayRefund = todayTrans.reduce((sum, t) => t.type === 'refund' ? sum + (t.amount || 0) : sum, 0);
+    
+    const monthlyIncome = monthTrans.reduce((sum, t) => (t.type === 'recharge' || (t.type === 'consume' && t.payment_method !== 'balance' && t.payment_method !== 'promotion_card')) ? sum + (t.amount || 0) : sum, 0);
+    const monthlyRefund = monthTrans.reduce((sum, t) => t.type === 'refund' ? sum + (t.amount || 0) : sum, 0);
+    const monthlyRevenue = monthlyIncome - monthlyRefund;
 
     const myTodayTrans = todayTrans.filter(t => t.staff_id === currentUser?.id);
     const myCashIncome = myTodayTrans.reduce((sum, t) => (t.type === 'consume' && t.payment_method !== 'balance' && t.payment_method !== 'promotion_card') ? sum + (t.amount || 0) : sum, 0);
     const myRechargeIncome = myTodayTrans.reduce((sum, t) => t.type === 'recharge' ? sum + (t.amount || 0) : sum, 0);
     const myConsumption = myTodayTrans.reduce((sum, t) => t.type === 'consume' && (t.payment_method === 'balance' || t.payment_method === 'promotion_card') ? sum + (t.amount || 0) : sum, 0);
 
-    const staffStats = staff.map(s => {
+    const staffStats = scheduleStaff.map(s => {
       const sTrans = todayTrans.filter(t => t.staff_id === s.id);
       const sCash = sTrans.reduce((sum, t) => (t.type === 'consume' && t.payment_method !== 'balance' && t.payment_method !== 'promotion_card') ? sum + (t.amount || 0) : sum, 0);
       const sRecharge = sTrans.reduce((sum, t) => t.type === 'recharge' ? sum + (t.amount || 0) : sum, 0);
@@ -379,18 +393,49 @@ const App: React.FC = () => {
       };
     }).sort((a, b) => b.actual - a.actual);
 
+    // 计算即将生日的会员（30天内）
+    const upcomingBirthdays = customers.filter(c => {
+      if (!c.birthday) return false;
+      
+      const today = new Date();
+      const [year, month, day] = c.birthday.split('-').map(Number);
+      
+      // 今年的生日日期
+      let thisYearBirthday = new Date(today.getFullYear(), month - 1, day);
+      
+      // 如果今年生日已过，计算明年生日
+      if (thisYearBirthday < today) {
+        thisYearBirthday = new Date(today.getFullYear() + 1, month - 1, day);
+      }
+      
+      const daysUntil = Math.ceil((thisYearBirthday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return daysUntil <= 30;
+    }).map(c => {
+      const today = new Date();
+      const [year, month, day] = c.birthday!.split('-').map(Number);
+      let thisYearBirthday = new Date(today.getFullYear(), month - 1, day);
+      if (thisYearBirthday < today) {
+        thisYearBirthday = new Date(today.getFullYear() + 1, month - 1, day);
+      }
+      const daysUntil = Math.ceil((thisYearBirthday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return { ...c, daysUntil, birthdayDate: thisYearBirthday };
+    }).sort((a, b) => a.daysUntil - b.daysUntil);
+
     return {
-      todayActual: cashIncome + rechargeIncome,
+      todayActual: cashIncome + rechargeIncome - todayRefund,
       todayCash: cashIncome,
       todayRecharge: rechargeIncome,
       todayConsumption: consumption,
+      todayRefund,
       monthlyRevenue,
+      monthlyRefund,
       totalMembers: customers.length,
       pendingAppts: appointments.filter(a => a.status === 'pending').length,
       todayAppts: appointments.filter(a => new Date(a.start_time).toDateString() === todayStr).length,
       allPendingAppts: appointments.filter(a => a.status === 'pending').sort((a,b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()),
       myTodayActual: myCashIncome + myRechargeIncome,
       myTodayConsumption: myConsumption,
+      upcomingBirthdays,
       staffStats
     };
   }, [transactions, customers, appointments, currentUser, staff]);
@@ -399,7 +444,7 @@ const App: React.FC = () => {
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(); d.setDate(d.getDate() - (6 - i));
       const income = transactions.filter(t => t && new Date(t.timestamp).toDateString() === d.toDateString() && !t.is_revoked).reduce((sum, t) => (t.type === 'recharge' || (t.type === 'consume' && t.payment_method !== 'balance' && t.payment_method !== 'promotion_card')) ? sum + (t.amount || 0) : sum, 0);
-      return { name: `${d.getMonth() + 1}/${d.getDate()}`, income };
+      return { name: `${d.getMonth() + 1}/${d.getDate()}`, 营收: income };
     });
   }, [transactions]);
 
@@ -582,7 +627,7 @@ const App: React.FC = () => {
       });
   };
 
-  const addLog = async (action: string, detail: string, undoData?: SystemLog['undoData']) => {
+  const addLog = async (action: string, detail: string, undoData?: SystemLog['undo_data']) => {
     await createLog({ operator: currentUser?.name || '系统', action, detail, undo_data: undoData });
   };
 
@@ -666,6 +711,7 @@ const App: React.FC = () => {
   };
 
   const handleAddCustomerCard = async (customerId: string) => {
+    if (isSubmitting) return;
     if (!formState.cardPromoId || !formState.cardAmount) return showAlert('提示', '请填写完整信息');
     const amount = parseFloat(formState.cardAmount);
     if (isNaN(amount) || amount <= 0) return showAlert('提示', '金额必须大于 0');
@@ -685,143 +731,160 @@ const App: React.FC = () => {
       }
     }
 
-    const cardResponse = await createCustomerCard({
-      customer_id: customerId,
-      promotion_id: promo.id,
-      balance: promo.type === 'count' ? undefined : amount,
-      used_count: promo.type === 'count' ? 0 : undefined,
-      total_count: promo.type === 'count' ? promo.total_count : undefined,
-    });
-    
-    if (!cardResponse.success || !cardResponse.data) {
-      return showAlert('提示', '创建活动卡失败');
+    setIsSubmitting(true);
+    try {
+      const cardResponse = await createCustomerCard({
+        customer_id: customerId,
+        promotion_id: promo.id,
+        balance: promo.type === 'count' ? undefined : amount,
+        used_count: promo.type === 'count' ? 0 : undefined,
+        total_count: promo.type === 'count' ? promo.total_count : undefined,
+      });
+      
+      if (!cardResponse.success || !cardResponse.data) {
+        return showAlert('提示', '创建活动卡失败');
+      }
+      
+      const customer = customers.find(c => c.id === customerId);
+      const transactionResponse = await createTransaction({
+        type: 'recharge',
+        customer_id: customerId,
+        customer_name: customer?.name || '未知',
+        customer_card_id: cardResponse.data.id,
+        promotion_name: promo.name,
+        amount,
+        payment_method: formState.cardPaymentMethod || 'wechat',
+        item_name: `办理活动卡: ${promo.name}`,
+        staff_id: formState.cardStaffId || currentUser?.id,
+      });
+      
+      await addLog('办理活动卡', `${customer?.name} - ${promo.name} (¥${amount})`, { type: 'add_customer_card', targetId: cardResponse.data.id, secondaryId: transactionResponse.data?.id, amount });
+      setFormState({...formState, cardPromoId: '', cardAmount: '', cardPaymentMethod: 'wechat', cardStaffId: ''});
+      setIsModalOpen(null);
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    const customer = customers.find(c => c.id === customerId);
-    await createTransaction({
-      type: 'recharge',
-      customer_id: customerId,
-      customer_name: customer?.name || '未知',
-      customer_card_id: cardResponse.data.id,
-      promotion_name: promo.name,
-      amount,
-      payment_method: formState.cardPaymentMethod || 'wechat',
-      item_name: `办理活动卡: ${promo.name}`,
-      staff_id: formState.cardStaffId || currentUser?.id,
-    });
-    
-    await addLog('办理活动卡', `${customer?.name} - ${promo.name} (¥${amount})`, { type: 'add_customer_card', targetId: cardResponse.data.id, amount });
-    setFormState({...formState, cardPromoId: '', cardAmount: '', cardPaymentMethod: 'wechat', cardStaffId: ''});
-    setIsModalOpen(null);
   };
 
   const handleSaveCustomer = async () => {
+    if (isSubmitting) return;
     if (!formState.custName || !formState.custPhone) return showAlert('提示', '请补全会员资料');
     
-    if (editingTarget && 'phone' in editingTarget) {
-      const labels: Record<string, string> = {
-        name: '姓名',
-        phone: '手机号',
-        remarks: '备注',
-        gender: '性别',
-        birthday: '生日',
-        source: '来源',
-        tags: '标签',
-        assignedStaffId: '专属客服'
-      };
-      
-      const diff = getDiff(editingTarget, {
-        name: formState.custName,
-        phone: formState.custPhone,
-        remarks: formState.custRemarks,
-        gender: formState.custGender,
-        birthday: formState.custBirthday,
-        source: formState.custSource,
-        tags: formState.custTags.split(/[,，]/).map((t: string) => t.trim()).filter(Boolean),
-        assignedStaffId: formState.custAssignedStaffId
-      }, labels);
+    setIsSubmitting(true);
+    try {
+      if (editingTarget && 'phone' in editingTarget) {
+        const labels: Record<string, string> = {
+          name: '姓名',
+          phone: '手机号',
+          remarks: '备注',
+          gender: '性别',
+          birthday: '生日',
+          source: '来源',
+          tags: '标签',
+          assignedStaffId: '专属客服'
+        };
+        
+        const diff = getDiff(editingTarget, {
+          name: formState.custName,
+          phone: formState.custPhone,
+          remarks: formState.custRemarks,
+          gender: formState.custGender,
+          birthday: formState.custBirthday,
+          source: formState.custSource,
+          tags: formState.custTags.split(/[,，]/).map((t: string) => t.trim()).filter(Boolean),
+          assignedStaffId: formState.custAssignedStaffId
+        }, labels);
 
-      await updateCustomer(editingTarget.id, {
-        name: formState.custName,
-        phone: formState.custPhone,
-        remarks: formState.custRemarks,
-        gender: formState.custGender,
-        birthday: formState.custBirthday,
-        source: formState.custSource,
-        tags: formState.custTags.split(/[,，]/).map((t: string) => t.trim()).filter(Boolean),
-        assigned_staff_id: formState.custAssignedStaffId
-      });
-      await addLog('修改会员资料', `${formState.custName}${diff ? ` (${diff})` : ''}`);
-    } else {
-      const amount = parseFloat(formState.amount) || 0;
-      const custResponse = await createCustomer({
-        name: formState.custName,
-        phone: formState.custPhone,
-        balance: amount,
-        remarks: formState.custRemarks || '',
-        gender: formState.custGender,
-        birthday: formState.custBirthday,
-        source: formState.custSource,
-        tags: formState.custTags.split(/[,，]/).map((t: string) => t.trim()).filter(Boolean),
-        assigned_staff_id: formState.custAssignedStaffId,
-      });
-      if (amount > 0 && custResponse.success && custResponse.data) {
-        await createTransaction({
-          type: 'recharge',
-          customer_id: custResponse.data.id,
-          customer_name: custResponse.data.name,
-          amount: amount,
-          payment_method: 'cash',
-          item_name: '开卡充值',
-          staff_id: currentUser?.id,
+        await updateCustomer(editingTarget.id, {
+          name: formState.custName,
+          phone: formState.custPhone,
+          remarks: formState.custRemarks,
+          gender: formState.custGender,
+          birthday: formState.custBirthday,
+          source: formState.custSource,
+          tags: formState.custTags.split(/[,，]/).map((t: string) => t.trim()).filter(Boolean),
+          assigned_staff_id: formState.custAssignedStaffId
         });
+        await addLog('修改会员资料', `${formState.custName}${diff ? ` (${diff})` : ''}`);
+      } else {
+        const amount = parseFloat(formState.amount) || 0;
+        const custResponse = await createCustomer({
+          name: formState.custName,
+          phone: formState.custPhone,
+          balance: amount,
+          remarks: formState.custRemarks || '',
+          gender: formState.custGender,
+          birthday: formState.custBirthday,
+          source: formState.custSource,
+          tags: formState.custTags.split(/[,，]/).map((t: string) => t.trim()).filter(Boolean),
+          assigned_staff_id: formState.custAssignedStaffId,
+        });
+        if (amount > 0 && custResponse.success && custResponse.data) {
+          await createTransaction({
+            type: 'recharge',
+            customer_id: custResponse.data.id,
+            customer_name: custResponse.data.name,
+            amount: amount,
+            payment_method: 'cash',
+            item_name: '开卡充值',
+            staff_id: currentUser?.id,
+          });
+        }
+        await addLog('录入会员', formState.custName);
       }
-      await addLog('录入会员', formState.custName);
+      setFormState({
+        ...formState,
+        custName: '',
+        custPhone: '',
+        custRemarks: '',
+        custGender: 'female',
+        custBirthday: '',
+        custSource: '',
+        custTags: '',
+        custAssignedStaffId: '',
+        amount: ''
+      });
+      closeModal();
+      setEditingTarget(null);
+    } finally {
+      setIsSubmitting(false);
     }
-    setFormState({
-      ...formState,
-      custName: '',
-      custPhone: '',
-      custRemarks: '',
-      custGender: 'female',
-      custBirthday: '',
-      custSource: '',
-      custTags: '',
-      custAssignedStaffId: '',
-      amount: ''
-    });
-    closeModal();
-    setEditingTarget(null);
   };
 
   const handleRecharge = async (custId: string, amountStr: string, method: 'cash' | 'wechat' | 'alipay' | 'meituan' = 'cash', forceCustomerName?: string, staffId?: string) => {
+    if (isSubmitting) return;
     const amount = parseFloat(amountStr);
     if (isNaN(amount) || amount <= 0) return showAlert('提示', '请输入有效的充值金额');
     
-    const cust = customers.find(c => c.id === custId);
-    const custName = forceCustomerName || cust?.name || '未知';
-    const finalStaffId = staffId || formState.rechargeStaffId || currentUser?.id;
-    
-    await apiUpdateBalance(custId, amount, 'add');
-    const transResponse = await createTransaction({
-      type: 'recharge',
-      customer_id: custId,
-      customer_name: custName,
-      amount,
-      payment_method: method,
-      item_name: '充值',
-      staff_id: finalStaffId,
-    });
-    if (transResponse.success && transResponse.data) {
-      await addLog('充值', `${custName} ¥${amount}`, { type: 'recharge', targetId: transResponse.data.id, secondaryId: custId, amount, paymentMethod: method, staffId: finalStaffId });
+    setIsSubmitting(true);
+    try {
+      const cust = customers.find(c => c.id === custId);
+      const custName = forceCustomerName || cust?.name || '未知';
+      const finalStaffId = staffId || formState.rechargeStaffId || currentUser?.id;
+      
+      await apiUpdateBalance(custId, amount, 'add');
+      const transResponse = await createTransaction({
+        type: 'recharge',
+        customer_id: custId,
+        customer_name: custName,
+        amount,
+        payment_method: method,
+        item_name: '充值',
+        staff_id: finalStaffId,
+      });
+      if (transResponse.success && transResponse.data) {
+        await addLog('充值', `${custName} ¥${amount}`, { type: 'recharge', targetId: transResponse.data.id, secondaryId: custId, amount, paymentMethod: method, staffId: finalStaffId });
+      }
+      closeModal();
+    } finally {
+      setIsSubmitting(false);
     }
-    closeModal();
   };
 
   const handleConsume = async (custId: string, amountStr: string, itemName: string, method: 'balance' | 'cash' | 'promotion_card' | 'meituan' | 'wechat' | 'alipay', apptId?: string, cardId?: string) => {
     const amount = parseFloat(amountStr);
-    if (isNaN(amount) || amount <= 0) return showAlert('提示', '请输入有效的结算金额');
-    if (!itemName) return showAlert('提示', '请输入服务项目');
+    if (isNaN(amount) || amount <= 0) return showAlert('请输入有效的结算金额');
+    if (!itemName) return showAlert('请输入服务项目');
 
     const cust = customers.find(c => c.id === custId);
     
@@ -829,47 +892,71 @@ const App: React.FC = () => {
     let originalAmount = amount;
     let promoName = undefined;
 
-    if (method === 'balance') {
-      if ((cust?.balance || 0) < amount) { showAlert('提示', '余额不足'); return; }
-      await apiUpdateBalance(custId, amount, 'subtract');
-    } else if (method === 'promotion_card' && cardId) {
-      const card = customerCards.find(c => c.id === cardId);
-      if (!card) return showAlert('提示', '未找到该活动卡');
-      const promo = promotions.find(p => p.id === card.promotion_id);
-      if (!promo) return showAlert('提示', '未找到该活动规则');
-      
-      promoName = promo.name;
-      if (promo.type === 'count') {
-        if ((card.used_count || 0) + amount > (card.total_count || 0)) {
-          showAlert('提示', `剩余次数不足，需要扣除 ${amount} 次，当前剩余 ${(card.total_count || 0) - (card.used_count || 0)} 次`);
+    try {
+      if (method === 'balance') {
+        if ((cust?.balance || 0) < amount) { showAlert('余额不足'); return; }
+        const balanceResponse = await apiUpdateBalance(custId, amount, 'subtract');
+        if (!balanceResponse.success) {
+          showAlert('余额扣除失败，请重试');
           return;
         }
-        await updateCustomerCard(cardId, { used_count: (card.used_count || 0) + amount });
-      } else {
-        actualAmount = amount * (promo.discount_rate || 1);
-        if ((card.balance || 0) < actualAmount) { showAlert('提示', `卡内余额不足，需要扣除 ${actualAmount.toFixed(2)}，当前余额 ${(card.balance || 0).toFixed(2)}`); return; }
-        await updateCustomerCard(cardId, { balance: (card.balance || 0) - actualAmount });
+      } else if (method === 'promotion_card' && cardId) {
+        const card = customerCards.find(c => c.id === cardId);
+        if (!card) return showAlert('未找到该活动卡');
+        const promo = promotions.find(p => p.id === card.promotion_id);
+        if (!promo) return showAlert('未找到该活动规则');
+        
+        promoName = promo.name;
+        if (promo.type === 'count') {
+          if ((card.used_count || 0) + amount > (card.total_count || 0)) {
+            showAlert(`剩余次数不足，需要扣除 ${amount} 次，当前剩余 ${(card.total_count || 0) - (card.used_count || 0)} 次`);
+            return;
+          }
+          const cardResponse = await updateCustomerCard(cardId, { used_count: (card.used_count || 0) + amount });
+          if (!cardResponse.success) {
+            showAlert('活动卡更新失败，请重试');
+            return;
+          }
+        } else {
+          actualAmount = amount * (promo.discount_rate || 1);
+          if ((card.balance || 0) < actualAmount) { showAlert(`卡内余额不足，需要扣除 ${actualAmount.toFixed(2)}，当前余额 ${(card.balance || 0).toFixed(2)}`); return; }
+          const cardResponse = await updateCustomerCard(cardId, { balance: (card.balance || 0) - actualAmount });
+          if (!cardResponse.success) {
+            showAlert('活动卡更新失败，请重试');
+            return;
+          }
+        }
       }
-    }
 
-    const transResponse = await createTransaction({ 
-      type: 'consume', 
-      customer_id: custId, 
-      customer_name: cust?.name || '未知', 
-      amount: actualAmount, 
-      original_amount: method === 'promotion_card' ? originalAmount : undefined,
-      customer_card_id: cardId,
-      promotion_name: promoName,
-      payment_method: method, 
-      item_name: itemName, 
-      staff_id: currentUser?.id, 
-    });
-    
-    if (apptId) await updateAppointmentStatus(apptId, 'completed');
-    if (transResponse.success && transResponse.data) {
-      await addLog('消费结算', `${cust?.name} ${itemName} ¥${actualAmount}`, { type: 'consume', targetId: transResponse.data.id, secondaryId: custId, amount: actualAmount, originalAmount, paymentMethod: method, prevStatus: apptId, customerCardId: cardId });
+      const transResponse = await createTransaction({ 
+        type: 'consume', 
+        customer_id: custId, 
+        customer_name: cust?.name || '未知', 
+        amount: actualAmount, 
+        original_amount: method === 'promotion_card' ? originalAmount : undefined,
+        customer_card_id: cardId,
+        promotion_name: promoName,
+        payment_method: method, 
+        item_name: itemName, 
+        staff_id: currentUser?.id, 
+      });
+      
+      if (!transResponse.success) {
+        showAlert('交易记录创建失败，请重试');
+        return;
+      }
+      
+      if (apptId) await updateAppointmentStatus(apptId, 'completed');
+      if (transResponse.success && transResponse.data) {
+        await addLog('消费结算', `${cust?.name} ${itemName} ¥${actualAmount}`, { type: 'consume', targetId: transResponse.data.id, secondaryId: custId, amount: actualAmount, originalAmount, paymentMethod: method, apptId: apptId, customerCardId: cardId });
+      }
+      
+      showAlert('结算成功！');
+      closeModal();
+    } catch (error) {
+      console.error('结算失败:', error);
+      showAlert('结算失败，请重试');
     }
-    closeModal();
   };
 
   const handleVoidAppt = async (appt: Appointment) => {
@@ -911,35 +998,41 @@ const App: React.FC = () => {
   };
 
   const handleRevokeConfirm = async () => {
-    if (!revokingLog || !revokingLog.undoData) return;
-    const { type, targetId, secondaryId, amount: amountRaw, prevStatus, paymentMethod, customerCardId } = revokingLog.undoData;
+    if (isSubmitting) return;
+    if (!revokingLog || !revokingLog.undo_data) return;
+    const { type, targetId, secondaryId, amount: amountRaw, apptId, paymentMethod, customerCardId } = revokingLog.undo_data;
     const amount = parseFloat(amountRaw as any) || 0;
     
-    if (type === 'recharge') {
-      await revokeTransaction(targetId);
-      if (secondaryId) await apiUpdateBalance(secondaryId, amount, 'subtract');
-    } else if (type === 'consume') {
-      await revokeTransaction(targetId);
-      if (secondaryId && paymentMethod === 'balance') await apiUpdateBalance(secondaryId, amount, 'add');
-      if (customerCardId && paymentMethod === 'promotion_card') {
-        const card = customerCards.find(c => c.id === customerCardId);
-        if (card) {
-          const promo = promotions.find(p => p.id === card.promotion_id);
-          if (promo?.type === 'count') {
-            await updateCustomerCard(card.id, { used_count: Math.max(0, (card.used_count || 0) - amount) });
-          } else {
-            await updateCustomerCard(card.id, { balance: (card.balance || 0) + amount });
+    setIsSubmitting(true);
+    try {
+      if (type === 'recharge') {
+        await revokeTransaction(targetId);
+        if (secondaryId) await apiUpdateBalance(secondaryId, amount, 'subtract');
+      } else if (type === 'consume') {
+        await revokeTransaction(targetId);
+        if (secondaryId && paymentMethod === 'balance') await apiUpdateBalance(secondaryId, amount, 'add');
+        if (customerCardId && paymentMethod === 'promotion_card') {
+          const card = customerCards.find(c => c.id === customerCardId);
+          if (card) {
+            const promo = promotions.find(p => p.id === card.promotion_id);
+            if (promo?.type === 'count') {
+              await updateCustomerCard(card.id, { used_count: Math.max(0, (card.used_count || 0) - amount) });
+            } else {
+              await updateCustomerCard(card.id, { balance: (card.balance || 0) + amount });
+            }
           }
         }
+        if (apptId) await updateAppointmentStatus(apptId, 'confirmed');
+      } else if (type === 'add_customer_card') {
+        await deleteCustomerCard(targetId);
+        if (secondaryId) await revokeTransaction(secondaryId);
       }
-      if (prevStatus) await updateAppointmentStatus(prevStatus, 'confirmed');
-    } else if (type === 'add_customer_card') {
-      await deleteCustomerCard(targetId);
-      if (secondaryId) await revokeTransaction(secondaryId);
+      await revokeLogApi(revokingLog.id);
+      await addLog('撤销', revokingLog.action);
+      setRevokingLog(null);
+    } finally {
+      setIsSubmitting(false);
     }
-    await revokeLogApi(revokingLog.id);
-    await addLog('撤销', revokingLog.action);
-    setRevokingLog(null);
   };
 
   const handleAiAnalyze = async () => {
@@ -974,29 +1067,45 @@ const App: React.FC = () => {
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row max-w-4xl w-full">
-          <div className="md:w-1/2 bg-indigo-600 p-8 md:p-12 text-white flex flex-col justify-center">
-            <h1 className="text-3xl md:text-4xl font-black mb-2 tracking-tight uppercase">BeautyPro</h1>
-            <p className="opacity-70 font-bold mb-6 md:mb-8 italic text-sm md:text-base">专业的店务管理专家</p>
-            <div className="space-y-3 md:space-y-4 text-sm md:text-base">
-              <div className="flex items-center gap-2 md:gap-3 font-bold"><CheckCircle size={18} className="md:w-5 md:h-5"/> 智能预约排班</div>
-              <div className="flex items-center gap-2 md:gap-3 font-bold"><Users size={18} className="md:w-5 md:h-5"/> 会员精细管理</div>
-              <div className="flex items-center gap-2 md:gap-3 font-bold"><History size={18} className="md:w-5 md:h-5"/> 资金全量监控</div>
+      <>
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row max-w-4xl w-full">
+            <div className="md:w-1/2 bg-indigo-600 p-8 md:p-12 text-white flex flex-col justify-center">
+              <h1 className="text-3xl md:text-4xl font-black mb-2 tracking-tight uppercase">BeautyPro</h1>
+              <p className="opacity-70 font-bold mb-6 md:mb-8 italic text-sm md:text-base">专业的店务管理专家</p>
+              <div className="space-y-3 md:space-y-4 text-sm md:text-base">
+                <div className="flex items-center gap-2 md:gap-3 font-bold"><CheckCircle size={18} className="md:w-5 md:h-5"/> 智能预约排班</div>
+                <div className="flex items-center gap-2 md:gap-3 font-bold"><Users size={18} className="md:w-5 md:h-5"/> 会员精细管理</div>
+                <div className="flex items-center gap-2 md:gap-3 font-bold"><History size={18} className="md:w-5 md:h-5"/> 资金全量监控</div>
+              </div>
             </div>
-          </div>
-          <div className="md:w-1/2 p-8 md:p-12 flex flex-col justify-center">
-            <h2 className="text-xl md:text-2xl font-black mb-6 md:mb-8 text-slate-800">职员登录</h2>
-            <form onSubmit={handleLogin} className="space-y-3 md:space-y-4">
-              <input value={formState.loginUser} onChange={e=>setFormState({...formState, loginUser: e.target.value})} className="w-full p-3 md:p-4 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl md:rounded-2xl outline-none font-bold text-sm md:text-base text-slate-900" placeholder="职员账号" required />
-              <input type="password" value={formState.loginPass} onChange={e=>setFormState({...formState, loginPass: e.target.value})} className="w-full p-3 md:p-4 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl md:rounded-2xl outline-none font-bold text-sm md:text-base text-slate-900" placeholder="安全密码" required />
-              <button type="submit" className="w-full py-3 md:py-4 bg-slate-900 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest hover:bg-black transition-all">确认进入系统</button>
-            </form>
-            <div className="mt-6 md:mt-8 text-center">
+            <div className="md:w-1/2 p-8 md:p-12 flex flex-col justify-center">
+              <h2 className="text-xl md:text-2xl font-black mb-6 md:mb-8 text-slate-800">职员登录</h2>
+              <form onSubmit={handleLogin} className="space-y-3 md:space-y-4">
+                <input value={formState.loginUser} onChange={e=>setFormState({...formState, loginUser: e.target.value})} className="w-full p-3 md:p-4 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl md:rounded-2xl outline-none font-bold text-sm md:text-base text-slate-900" placeholder="职员账号" required />
+                <input type="password" value={formState.loginPass} onChange={e=>setFormState({...formState, loginPass: e.target.value})} className="w-full p-3 md:p-4 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl md:rounded-2xl outline-none font-bold text-sm md:text-base text-slate-900" placeholder="安全密码" required />
+                <button type="submit" className="w-full py-3 md:py-4 bg-slate-900 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest hover:bg-black transition-all">确认进入系统</button>
+              </form>
+              <div className="mt-6 md:mt-8 text-center">
+              </div>
             </div>
           </div>
         </div>
-      </div>
+        {customAlert && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-[2rem] p-6 md:p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 text-center space-y-4">
+              <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center text-red-600 mx-auto">
+                <AlertCircle size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">{customAlert.title}</h3>
+                <p className="text-sm text-slate-500 font-bold mt-2 whitespace-pre-wrap">{customAlert.message}</p>
+              </div>
+              <button onClick={() => setCustomAlert(null)} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black text-xs uppercase active:scale-95 transition-all">确定</button>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -1028,74 +1137,70 @@ const App: React.FC = () => {
             </button>
             <div className="relative" ref={notificationRef}>
               <div className="p-1.5 md:p-2 hover:bg-slate-50 rounded-xl cursor-pointer relative" onClick={() => setShowReminders(!showReminders)}>
-                {(stats.pendingAppts > 0 || reminders.filter(r => r.status === 'pending').length > 0) && (
-                  <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-md animate-in zoom-in">
-                    {stats.pendingAppts + reminders.filter(r => r.status === 'pending').length}
-                  </span>
-                )}
+                {(() => {
+                  const isAdmin = currentUser?.permissions.includes('all');
+                  const notifAppts = appointments.filter(a => 
+                    (isAdmin || a.staff_id === currentUser?.id) && a.status !== 'completed'
+                  );
+                  return notifAppts.length > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-md animate-in zoom-in">
+                      {notifAppts.length}
+                    </span>
+                  );
+                })()}
                 <Bell size={18} className="text-slate-400 md:w-5 md:h-5"/>
               </div>
               {showReminders && (
-                <div className="absolute right-0 mt-3 w-72 md:w-80 bg-white rounded-2xl md:rounded-3xl shadow-2xl border z-[120] overflow-hidden animate-in fade-in slide-in-from-top-2">
+                <div className="absolute right-0 mt-3 w-80 md:w-96 bg-white rounded-2xl md:rounded-3xl shadow-2xl border z-[120] overflow-hidden animate-in fade-in slide-in-from-top-2">
                   <div className="p-3 md:p-4 bg-slate-50 text-[10px] font-black uppercase border-b tracking-widest flex justify-between items-center">
-                    <span>通知中心</span>
+                    <span>{currentUser?.permissions.includes('all') ? '全部预约' : '我的预约'}</span>
                     <button onClick={() => setShowReminders(false)} className="text-slate-400 hover:text-slate-600"><X size={14}/></button>
                   </div>
-                  <div className="max-h-96 overflow-y-auto custom-scroll">
-                    {/* 员工提醒 */}
-                    {reminders.filter(r => r.status === 'pending').length > 0 && (
-                      <div className="bg-indigo-50/30">
-                        <div className="px-4 py-2 text-[9px] font-black text-indigo-400 uppercase tracking-widest border-b border-indigo-100">员工提醒</div>
-                        {reminders.filter(r => r.status === 'pending').map(r => (
-                          <div key={r.id} className="p-4 border-b border-indigo-50 hover:bg-indigo-50 transition-colors group">
-                            <div className="flex gap-3">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${r.type === 'birthday' ? 'bg-pink-100 text-pink-500' : 'bg-amber-100 text-amber-500'}`}>
-                                {r.type === 'birthday' ? <Cake size={14} /> : <Zap size={14} />}
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-[11px] font-bold text-slate-700 leading-relaxed">{r.content}</p>
-                                <div className="flex justify-between items-center mt-2">
-                                  <span className="text-[8px] font-bold text-slate-400 uppercase">{new Date(r.created_at).toLocaleDateString()}</span>
-                                  <button 
-                                    onClick={(e) => { e.stopPropagation(); setConfirmReminderId(r.id); setShowReminders(false); }}
-                                    className="text-[9px] font-black text-indigo-600 hover:underline uppercase tracking-tighter"
-                                  >
-                                    标记已处理
-                                  </button>
+                  <div className="max-h-80 overflow-y-auto custom-scroll">
+                    {(() => {
+                      const isAdmin = currentUser?.permissions.includes('all');
+                      const notifAppts = appointments.filter(a => 
+                        (isAdmin || a.staff_id === currentUser?.id) && a.status !== 'completed'
+                      ).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+                       .slice(0, 10);
+                      
+                      return notifAppts.length > 0 ? (
+                        notifAppts.map(a => {
+                          const apptStaff = staff.find(s => s.id === a.staff_id);
+                          return (
+                          <div 
+                            key={a.id} 
+                            className="p-3 border-b hover:bg-slate-50 transition-all cursor-pointer"
+                            onClick={() => { setSelectedAppt(a); setShowReminders(false); }}
+                          >
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-[11px] font-bold text-slate-800 truncate">{a.customer_name}</p>
+                                  {isAdmin && apptStaff && (
+                                    <span className="text-[8px] font-black px-1.5 py-0.5 bg-indigo-50 text-indigo-500 rounded-full">{apptStaff.name}</span>
+                                  )}
                                 </div>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter mt-0.5 truncate">{a.project_name}</p>
+                                <p className="text-[8px] text-slate-500 font-bold mt-1">
+                                  {new Date(a.start_time).toLocaleDateString()} {formatTime(a.start_hour)} · {a.duration}小时
+                                </p>
                               </div>
+                              <span className={`shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded-full ${a.status==='pending'?'bg-amber-100 text-amber-600':'bg-indigo-100 text-indigo-600'}`}>
+                                {a.status==='pending'?'待确认':'待结算'}
+                              </span>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* 待确认预约 */}
-                    {stats.pendingAppts > 0 && (
-                      <div>
-                        <div className="px-4 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b">待确认预约</div>
-                        {stats.allPendingAppts.map(a => (
-                          <div key={a.id} className="p-4 border-b hover:bg-slate-50 transition-all cursor-pointer" onClick={() => { setActiveTab('appts'); setSelectedAppt(a); setShowReminders(false); }}>
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <p className="text-xs font-bold text-slate-800">{a.customer_name}</p>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter mt-0.5">{a.project_name} · {formatTime(a.start_hour)}</p>
-                              </div>
-                              <div className="p-1.5 bg-amber-50 text-amber-500 rounded-lg"><Clock size={12}/></div>
-                            </div>
+                        );})
+                      ) : (
+                        <div className="p-6 text-center">
+                          <div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-2">
+                            <BellOff size={18} className="text-slate-300" />
                           </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {stats.pendingAppts === 0 && reminders.filter(r => r.status === 'pending').length === 0 && (
-                      <div className="p-8 text-center">
-                        <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                          <BellOff size={20} className="text-slate-300" />
+                          <p className="text-[10px] font-bold text-slate-400 italic">暂无待处理预约</p>
                         </div>
-                        <p className="text-xs font-bold text-slate-400 italic">暂无新通知</p>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -1287,6 +1392,63 @@ const App: React.FC = () => {
                 </div>
               )}
 
+              {/* 会员生日提醒 */}
+              {stats.upcomingBirthdays.length > 0 && (
+                <div className="bg-gradient-to-br from-pink-50 to-rose-50 p-4 md:p-6 rounded-3xl md:rounded-[2.5rem] border border-pink-100 shadow-sm">
+                  <div className="flex items-center justify-between mb-4 md:mb-6">
+                    <h3 className="text-xs md:text-sm font-black uppercase tracking-widest text-rose-600 flex items-center gap-2">
+                      <Cake size={16}/> 会员生日提醒
+                    </h3>
+                    <span className="text-[10px] font-bold text-rose-400 bg-rose-100 px-2 py-1 rounded-full">
+                      {stats.upcomingBirthdays.length}人
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {stats.upcomingBirthdays.slice(0, 6).map((c) => {
+                      const customer = customers.find(cust => cust.id === c.id);
+                      return (
+                      <div 
+                        key={c.id} 
+                        className="flex items-center justify-between p-3 bg-white/80 rounded-xl hover:bg-white transition-all cursor-pointer"
+                        onClick={() => { 
+                          if (customer) {
+                            setEditingTarget(customer as any); 
+                            setFormState({...formState, custName:customer.name, custPhone:customer.phone, custRemarks:customer.remarks, custGender:customer.gender||'female', custBirthday:customer.birthday||'', custSource:customer.source||'', custTags:(customer.tags||[]).join(', '), custAssignedStaffId: customer.assigned_staff_id || '', amount:''}); 
+                            setIsModalOpen('edit_customer'); 
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black ${c.daysUntil === 0 ? 'bg-rose-100 text-rose-600' : c.daysUntil <= 7 ? 'bg-pink-100 text-pink-600' : 'bg-slate-100 text-slate-500'}`}>
+                            {c.daysUntil === 0 ? '🎉' : c.daysUntil === 1 ? '1天' : `${c.daysUntil}天`}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-800">{c.name}</p>
+                            <p className="text-[10px] text-slate-400 font-bold">{c.phone}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] font-black text-rose-500">
+                            {c.birthdayDate.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}
+                          </p>
+                          <p className="text-[9px] text-slate-400">
+                            {c.daysUntil === 0 ? '今天生日' : c.daysUntil === 1 ? '明天生日' : `${c.daysUntil}天后`}
+                          </p>
+                        </div>
+                      </div>
+                    );})}
+                  </div>
+                  {stats.upcomingBirthdays.length > 6 && (
+                    <button 
+                      onClick={() => setActiveTab('customers')}
+                      className="w-full mt-3 py-2 text-[10px] font-bold text-rose-500 hover:text-rose-600 transition-colors"
+                    >
+                      查看全部 ({stats.upcomingBirthdays.length}人) →
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
                 <div className="lg:col-span-2 bg-white p-4 md:p-8 rounded-3xl md:rounded-[2.5rem] border shadow-sm">
                   <div className="flex justify-between items-center mb-8">
@@ -1300,7 +1462,7 @@ const App: React.FC = () => {
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize:10,fontWeight:700,fill:'#94a3b8'}}/>
                         <YAxis hide/>
                         <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius:'1rem',border:'none',boxShadow:'0 10px 15px -3px rgb(0 0 0 / 0.1)'}}/>
-                        <Bar dataKey="income" radius={[8,8,8,8]} barSize={32}>
+                        <Bar dataKey="营收" radius={[8,8,8,8]} barSize={32}>
                           {chartData.map((_,idx)=><Cell key={idx} fill={idx===6?'#4f46e5':'#e2e8f0'}/>)}
                         </Bar>
                       </BarChart>
@@ -1415,7 +1577,7 @@ const App: React.FC = () => {
                         <div className="flex border-b sticky top-0 bg-white z-30 shadow-sm">
                           <div className="w-20 border-r bg-slate-50/50 sticky left-0 z-40"></div>
                           <div className="flex">
-                            {staff.map(s => {
+                            {scheduleStaff.map(s => {
                               const staffAppts = appointments.filter(a => a.staff_id === s.id && new Date(a.start_time).toDateString() === selectedDate.toDateString()).sort((a, b) => a.start_hour - b.start_hour);
                               return (
                               <div key={s.id} className="w-48 p-3 border-r last:border-r-0 text-center flex flex-col items-center gap-1.5 shrink-0">
@@ -1427,7 +1589,7 @@ const App: React.FC = () => {
                                 {staffAppts.length > 0 && (
                                   <div className="flex flex-wrap justify-center gap-1 mt-1">
                                     {staffAppts.map(a => (
-                                      <span key={a.id} className={`text-[8px] px-1 py-0.5 rounded font-bold ${a.status==='pending'?'bg-amber-50 text-amber-600':a.status==='confirmed'?'bg-indigo-50 text-indigo-600':a.status==='completed'?'bg-emerald-50 text-emerald-600':'bg-slate-100 text-slate-500'}`}>
+                                      <span key={a.id} className={`text-[8px] px-1 py-0.5 rounded font-bold ${a.status==='pending'?'bg-amber-50 text-amber-600':a.status==='confirmed'?'bg-indigo-50 text-indigo-600':a.status==='completed'?'bg-green-200 text-green-700':'bg-slate-100 text-slate-500'}`}>
                                         {formatTime(a.start_hour)}
                                       </span>
                                     ))}
@@ -1449,7 +1611,7 @@ const App: React.FC = () => {
                             })}
                           </div>
                           <div className="flex relative bg-slate-50/20">
-                            {staff.map(s => (
+                            {scheduleStaff.map(s => (
                               <div key={s.id} className="w-48 border-r last:border-r-0 relative shrink-0">
                                 {Array.from({length:14 * 2}).map((_,i)=>{
                                   const val = i * 0.5 + 8;
@@ -1477,7 +1639,7 @@ const App: React.FC = () => {
                                   <div 
                                     key={a.id} 
                                     onClick={(e)=>{e.stopPropagation();setSelectedAppt(a);}} 
-                                    className={`absolute left-1 right-1 rounded-xl p-3 shadow-sm border-l-4 flex flex-col gap-1.5 transition-all cursor-pointer z-10 hover:shadow-md hover:z-20 ${a.status==='pending'?'bg-amber-50 border-amber-500':a.status==='confirmed'?'bg-indigo-50 border-indigo-500':a.status==='completed'?'bg-emerald-50 border-emerald-500':'bg-slate-100 border-slate-400 opacity-60'}`}
+                                    className={`absolute left-1 right-1 rounded-xl p-3 shadow-sm border-l-4 flex flex-col gap-1.5 transition-all cursor-pointer z-10 hover:shadow-md hover:z-20 ${a.status==='pending'?'bg-amber-50 border-amber-500':a.status==='confirmed'?'bg-indigo-50 border-indigo-500':a.status==='completed'?'bg-green-100 border-green-600 ring-2 ring-green-300':'bg-slate-100 border-slate-400 opacity-60'}`}
                                     style={{
                                       top: `${(a.start_hour - 8) * 128 + 4}px`,
                                       height: `${a.duration * 128 - 8}px`
@@ -1485,16 +1647,16 @@ const App: React.FC = () => {
                                   >
                                     <div className="flex justify-between items-start">
                                       <div className="flex flex-col">
-                                        <span className="text-[11px] font-black text-slate-900 leading-none">{a.customer_name}</span>
+                                        <span className={`text-[11px] font-black leading-none ${a.status==='completed'?'text-green-700':'text-slate-900'}`}>{a.customer_name}</span>
                                         <span className="text-[9px] text-slate-400 font-bold mt-0.5">{customers.find(c => c.id === a.customer_id)?.phone}</span>
                                       </div>
-                                          <span className="text-[9px] font-black text-indigo-600 bg-indigo-100/50 px-1.5 py-0.5 rounded uppercase">
-                                            {Math.floor(a.start_hour)}:{((a.start_hour % 1) * 60).toString().padStart(2, '0')}
+                                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase ${a.status==='completed'?'text-green-600 bg-green-200':'text-indigo-600 bg-indigo-100/50'}`}>
+                                            {a.status==='completed'?'✓ ':''}{Math.floor(a.start_hour)}:{((a.start_hour % 1) * 60).toString().padStart(2, '0')}
                                           </span>
                                     </div>
                                     
-                                    <div className="bg-white/60 rounded-lg p-2 border border-black/5">
-                                      <div className="text-[10px] font-black text-slate-700 uppercase tracking-tight">{a.project_name}</div>
+                                    <div className={`rounded-lg p-2 border ${a.status==='completed'?'bg-green-50 border-green-200':'bg-white/60 border-black/5'}`}>
+                                      <div className={`text-[10px] font-black uppercase tracking-tight ${a.status==='completed'?'text-green-700':'text-slate-700'}`}>{a.project_name}</div>
                                       <div className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">{a.duration}小时</div>
                                       {a.note && (
                                         <div className="text-[9px] text-slate-500 font-medium mt-1 line-clamp-2 italic leading-tight">
@@ -1518,7 +1680,7 @@ const App: React.FC = () => {
                           <div className="flex border-b bg-slate-50 sticky top-0 z-30">
                             <div className="w-12 shrink-0 border-r bg-slate-50 sticky left-0 z-40"></div>
                             <div className="flex">
-                              {staff.map(s => {
+                              {scheduleStaff.map(s => {
                                 const staffAppts = appointments.filter(a => a.staff_id === s.id && new Date(a.start_time).toDateString() === selectedDate.toDateString()).sort((a, b) => a.start_hour - b.start_hour);
                                 return (
                                 <div key={s.id} className="w-24 shrink-0 p-2 text-center border-r last:border-r-0 flex flex-col items-center gap-1">
@@ -1527,7 +1689,7 @@ const App: React.FC = () => {
                                   {staffAppts.length > 0 && (
                                     <div className="flex flex-wrap justify-center gap-0.5 mt-0.5">
                                       {staffAppts.map(a => (
-                                        <span key={a.id} className={`text-[7px] px-1 py-0.5 rounded font-bold ${a.status==='pending'?'bg-amber-50 text-amber-600':a.status==='confirmed'?'bg-indigo-50 text-indigo-600':a.status==='completed'?'bg-emerald-50 text-emerald-600':'bg-slate-100 text-slate-500'}`}>
+                                        <span key={a.id} className={`text-[7px] px-1 py-0.5 rounded font-bold ${a.status==='pending'?'bg-amber-50 text-amber-600':a.status==='confirmed'?'bg-indigo-50 text-indigo-600':a.status==='completed'?'bg-green-200 text-green-700':'bg-slate-100 text-slate-500'}`}>
                                           {formatTime(a.start_hour)}
                                         </span>
                                       ))}
@@ -1551,7 +1713,7 @@ const App: React.FC = () => {
                             </div>
                             {/* Staff Columns Grid */}
                             <div className="flex">
-                              {staff.map(s => (
+                              {scheduleStaff.map(s => (
                                 <div key={s.id} className="w-24 shrink-0 relative border-r last:border-r-0">
                                   {Array.from({length:14 * 2}).map((_,i) => {
                                     const val = i * 0.5 + 8;
@@ -1579,19 +1741,19 @@ const App: React.FC = () => {
                                     <div 
                                       key={a.id} 
                                       onClick={(e)=>{e.stopPropagation();setSelectedAppt(a);}}
-                                      className={`absolute left-0.5 right-0.5 rounded-lg p-1.5 shadow-sm border-l-2 flex flex-col gap-1 transition-all cursor-pointer z-10 ${a.status==='pending'?'bg-amber-50 border-amber-500':a.status==='confirmed'?'bg-indigo-50 border-indigo-500':a.status==='completed'?'bg-emerald-50 border-emerald-500':'bg-slate-100 border-slate-400 opacity-60'} active:scale-95`}
+                                      className={`absolute left-0.5 right-0.5 rounded-lg p-1.5 shadow-sm border-l-2 flex flex-col gap-1 transition-all cursor-pointer z-10 ${a.status==='pending'?'bg-amber-50 border-amber-500':a.status==='confirmed'?'bg-indigo-50 border-indigo-500':a.status==='completed'?'bg-green-100 border-green-600 ring-2 ring-green-300':'bg-slate-100 border-slate-400 opacity-60'} active:scale-95`}
                                       style={{top: `${(a.start_hour - 8) * 96 + 2}px`, height: `${a.duration * 96 - 4}px` }}
                                     >
                                       <div className="flex justify-between items-start">
                                         <div className="flex flex-col">
-                                          <span className="text-[9px] font-black text-slate-900 leading-none truncate max-w-[40px]">{a.customer_name}</span>
+                                          <span className={`text-[9px] font-black leading-none truncate max-w-[40px] ${a.status==='completed'?'text-green-700':'text-slate-900'}`}>{a.customer_name}</span>
                                           <span className="text-[7px] text-slate-400 font-bold mt-0.5">
-                                            {Math.floor(a.start_hour)}:{((a.start_hour % 1) * 60).toString().padStart(2, '0')}
+                                            {a.status==='completed'?'✓ ':''}{Math.floor(a.start_hour)}:{((a.start_hour % 1) * 60).toString().padStart(2, '0')}
                                           </span>
                                         </div>
                                       </div>
-                                      <div className="bg-white/40 rounded p-1 border border-black/5 mt-auto">
-                                        <div className="text-[7px] font-black text-slate-700 uppercase truncate">{a.project_name}</div>
+                                      <div className={`rounded p-1 border mt-auto ${a.status==='completed'?'bg-green-50 border-green-200':'bg-white/40 border-black/5'}`}>
+                                        <div className={`text-[7px] font-black uppercase truncate ${a.status==='completed'?'text-green-700':'text-slate-700'}`}>{a.project_name}</div>
                                       </div>
                                     </div>
                                   ))}
@@ -1983,26 +2145,28 @@ const App: React.FC = () => {
           )}
 
           {activeTab === 'logs' && (
-            <div className="bg-white rounded-2xl md:rounded-[2.5rem] border shadow-sm overflow-hidden overflow-x-auto custom-scroll animate-in fade-in">
-              <table className="w-full text-left min-w-[700px]">
-                <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase border-b"><tr><th className="px-4 md:px-8 py-3 md:py-5">操作员</th><th className="px-4 md:px-8 py-3 md:py-5">行为</th><th className="px-4 md:px-8 py-3 md:py-5">内容</th><th className="px-4 md:px-8 py-3 md:py-5 text-right">撤销</th></tr></thead>
-                <tbody className="divide-y text-xs md:text-sm">
-                  {logs.map(l=>(
-                    <tr key={l.id} className={`hover:bg-slate-50/50 transition-colors ${l.is_revoked?'opacity-30 line-through':''}`}>
-                      <td className="px-4 md:px-8 py-3 md:py-5 font-bold text-[10px] md:text-xs text-slate-800">{l.operator}</td>
-                      <td className="px-4 md:px-8 py-3 md:py-5 font-black text-indigo-600 text-[9px] md:text-[10px] uppercase">{l.action}</td>
-                      <td className="px-4 md:px-8 py-3 md:py-5 text-[10px] md:text-xs text-slate-500 font-medium">
-                        {l.detail} <span className="block text-[7px] md:text-[8px] text-slate-300 mt-1">{new Date(l.timestamp).toLocaleTimeString()}</span>
-                      </td>
-                      <td className="px-4 md:px-8 py-3 md:py-5 text-right">
-                        {l.undo_data && !l.is_revoked && (
-                          <button onClick={()=>setRevokingLog(l)} className="p-1.5 md:p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all active:scale-90"><Undo2 size={14} className="md:w-4 md:h-4"/></button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="bg-white rounded-2xl md:rounded-[2.5rem] border shadow-sm overflow-hidden">
+              <div className="md:overflow-x-auto md:custom-scroll">
+                <table className="w-full text-left md:min-w-[700px]">
+                  <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase border-b"><tr><th className="px-4 md:px-8 py-3 md:py-5">操作员</th><th className="px-4 md:px-8 py-3 md:py-5">行为</th><th className="px-4 md:px-8 py-3 md:py-5">内容</th><th className="px-4 md:px-8 py-3 md:py-5 text-right">撤销</th></tr></thead>
+                  <tbody className="divide-y text-xs md:text-sm">
+                    {logs.map(l=>(
+                      <tr key={l.id} className={`hover:bg-slate-50/50 transition-colors ${l.is_revoked?'opacity-30 line-through':''}`}>
+                        <td className="px-4 md:px-8 py-3 md:py-5 font-bold text-[10px] md:text-xs text-slate-800">{l.operator}</td>
+                        <td className="px-4 md:px-8 py-3 md:py-5 font-black text-indigo-600 text-[9px] md:text-[10px] uppercase">{l.action}</td>
+                        <td className="px-4 md:px-8 py-3 md:py-5 text-[10px] md:text-xs text-slate-500 font-medium">
+                          {l.detail} <span className="block text-[7px] md:text-[8px] text-slate-300 mt-1">{new Date(l.timestamp).toLocaleTimeString()}</span>
+                        </td>
+                        <td className="px-4 md:px-8 py-3 md:py-5 text-right">
+                          {l.undo_data && !l.is_revoked && (
+                            <button onClick={()=>setRevokingLog(l)} className="p-1.5 md:p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all active:scale-90"><Undo2 size={14} className="md:w-4 md:h-4"/></button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
@@ -2300,15 +2464,31 @@ const App: React.FC = () => {
             )}
 
             {/* 会员录入/编辑弹窗 */}
-            {isModalOpen === 'new_customer' && (
+            {(isModalOpen === 'new_customer' || isModalOpen === 'edit_customer') && (
               <div className="space-y-4 md:space-y-6">
                 <div className="flex items-center justify-center relative">
                   {editingTarget && 'phone' in editingTarget && (
                     <button 
                       onClick={() => {
-                        showConfirm('确认删除该会员？此操作不可撤销！', async () => {
-                          await deleteCustomer(editingTarget.id);
-                          await addLog('删除会员', editingTarget.name);
+                        const customerBalance = (editingTarget as Customer)?.balance || 0;
+                        const confirmMsg = customerBalance > 0 
+                          ? `确认删除该会员？会员余额 ¥${customerBalance} 将退款，此操作不可撤销！`
+                          : '确认删除该会员？此操作不可撤销！';
+                        showConfirm(confirmMsg, async () => {
+                          if (customerBalance > 0) {
+                            await createTransaction({
+                              type: 'refund',
+                              customer_id: (editingTarget as Customer).id,
+                              customer_name: (editingTarget as Customer).name,
+                              amount: customerBalance,
+                              payment_method: 'balance',
+                              item_name: '会员退卡退款',
+                              staff_id: currentUser?.id,
+                            });
+                            await addLog('会员退款', `${(editingTarget as Customer).name} 退款 ¥${customerBalance}`);
+                          }
+                          await deleteCustomer((editingTarget as Customer).id);
+                          await addLog('删除会员', (editingTarget as Customer).name);
                           closeModal();
                           setEditingTarget(null);
                         }, '删除会员');
@@ -2428,7 +2608,10 @@ const App: React.FC = () => {
                     <input value={formState.custRemarks} onChange={e=>setFormState({...formState, custRemarks: e.target.value})} placeholder="对某产品过敏" className="w-full p-3 md:p-4 bg-slate-50 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none border-2 border-transparent focus:border-indigo-400 text-slate-900" />
                   </div>
                 </div>
-                <button onClick={handleSaveCustomer} className="w-full py-3 md:py-4 bg-slate-900 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase shadow-lg tracking-widest active:scale-95 transition-all">{editingTarget && 'phone' in editingTarget ? '保存修改' : '确认录入系统'}</button>
+                <button onClick={handleSaveCustomer} disabled={isSubmitting} className="w-full py-3 md:py-4 bg-slate-900 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase shadow-lg tracking-widest active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                  {isSubmitting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                  {isSubmitting ? '处理中...' : (editingTarget && 'phone' in editingTarget ? '保存修改' : '确认录入系统')}
+                </button>
               </div>
             )}
 
@@ -2463,12 +2646,15 @@ const App: React.FC = () => {
                       <label className="text-[9px] font-black text-slate-400 uppercase ml-2">经办员工 *</label>
                       <select value={formState.cardStaffId} onChange={e=>setFormState({...formState, cardStaffId: e.target.value})} className="w-full p-3 md:p-4 bg-slate-50 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none border-2 border-transparent focus:border-indigo-400 text-slate-900">
                         <option value="">请选择员工...</option>
-                        {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        {scheduleStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
                     </div>
                   </div>
                 </div>
-                <button onClick={() => handleAddCustomerCard(isModalOpen.split('_')[2])} className="w-full py-3 md:py-4 bg-indigo-600 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase shadow-lg tracking-widest active:scale-95 transition-all">确认办理</button>
+                <button onClick={() => handleAddCustomerCard(isModalOpen.split('_')[2])} disabled={isSubmitting} className="w-full py-3 md:py-4 bg-indigo-600 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase shadow-lg tracking-widest active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                  {isSubmitting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                  {isSubmitting ? '处理中...' : '确认办理'}
+                </button>
               </div>
             )}
 
@@ -2504,8 +2690,10 @@ const App: React.FC = () => {
                       <button 
                         key={m.id}
                         onClick={() => handleRecharge(isModalOpen.split('_')[1], formState.amount, m.id as any)}
-                        className={`py-3 rounded-xl font-black text-[10px] uppercase text-white shadow-lg active:scale-95 transition-all ${m.color}`}
+                        disabled={isSubmitting}
+                        className={`py-3 rounded-xl font-black text-[10px] uppercase text-white shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 ${m.color}`}
                       >
+                        {isSubmitting && <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
                         {m.label}
                       </button>
                     ))}
@@ -2555,10 +2743,7 @@ const App: React.FC = () => {
                   <div className="space-y-6 md:space-y-8">
                      <div className="flex justify-between items-start">
                         <div className="w-12 h-12 md:w-16 md:h-16 bg-indigo-50 rounded-xl md:rounded-2xl flex items-center justify-center text-indigo-600 text-xl md:text-2xl font-black shadow-inner">{cust.name[0]}</div>
-                                                 <div className="flex gap-2">
-                            <button onClick={()=>{setEditingTarget(cust as any); setFormState({...formState, custName:cust.name, custPhone:cust.phone, custRemarks:cust.remarks, custGender:cust.gender||'female', custBirthday:cust.birthday||'', custSource:cust.source||'', custTags:(cust.tags||[]).join(', '), custAssignedStaffId: cust.assigned_staff_id || '', amount:''}); openModal('new_customer');}} className="hidden md:flex p-2 md:p-3 bg-slate-50 rounded-lg md:rounded-xl text-slate-400 hover:text-indigo-600 transition-all active:scale-90 items-center gap-2 font-bold text-xs"><Edit3 size={16}/> 编辑</button>
-                            <button onClick={closeModal} className="p-2 md:p-3 bg-slate-50 rounded-lg md:rounded-xl text-slate-400 hover:text-red-500 transition-all active:scale-90"><X size={16} className="md:w-[18px] md:h-[18px]"/></button>
-                         </div>
+                         <button onClick={()=>{setEditingTarget(cust as any); setFormState({...formState, custName:cust.name, custPhone:cust.phone, custRemarks:cust.remarks, custGender:cust.gender||'female', custBirthday:cust.birthday||'', custSource:cust.source||'', custTags:(cust.tags||[]).join(', '), custAssignedStaffId: cust.assigned_staff_id || '', amount:''}); openModal('new_customer');}} className="hidden md:flex p-2 md:p-3 bg-slate-50 rounded-lg md:rounded-xl text-slate-400 hover:text-indigo-600 transition-all active:scale-90 items-center gap-2 font-bold text-xs"><Edit3 size={16}/> 编辑</button>
                      </div>
                                            <div>
                         <div className="flex items-center gap-3">
@@ -2612,8 +2797,32 @@ const App: React.FC = () => {
                                          : `剩余: ¥${(card.balance || 0).toLocaleString()}`}
                                      </p>
                                    </div>
-                                   <div className="bg-purple-200 text-purple-800 px-2 py-1 rounded font-black text-[9px]">
-                                     {card.type === 'count' ? '次卡' : `${(card.discount_rate || 1) * 10}折`}
+                                   <div className="flex items-center gap-2">
+                                     <div className="bg-purple-200 text-purple-800 px-2 py-1 rounded font-black text-[9px]">
+                                       {card.type === 'count' ? '次卡' : `${(card.discount_rate || 1) * 10}折`}
+                                     </div>
+                                     <button 
+                                       onClick={() => {
+                                         const refundAmount = card.type === 'count' ? 0 : (card.balance || 0);
+                                         showConfirm(
+                                           card.type === 'count' 
+                                             ? '确认退卡？次卡退卡后剩余次数作废，不予退款。' 
+                                             : `确认退卡？储值卡余额 ¥${refundAmount} 将退回会员余额。`,
+                                           async () => {
+                                             if (refundAmount > 0) {
+                                               await updateCustomerBalance(custId, refundAmount, 'add');
+                                             }
+                                             await deleteCustomerCard(card.id);
+                                             await addLog('退卡', `${customers.find(c => c.id === custId)?.name} - ${card.displayText.split(' - ')[0]}${refundAmount > 0 ? ` (退款¥${refundAmount})` : ''}`);
+                                           },
+                                           '退卡'
+                                         );
+                                       }}
+                                       className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                       title="退卡"
+                                     >
+                                       <Trash2 size={14} />
+                                     </button>
                                    </div>
                                 </div>
                              ))}
@@ -2959,7 +3168,7 @@ const App: React.FC = () => {
                       <label className="text-[8px] font-black text-slate-400 uppercase ml-1">指派技师 *</label>
                       <select value={formState.apptStaffId} onChange={e=>setFormState({...formState, apptStaffId: e.target.value})} className="w-full p-2.5 md:p-3 bg-slate-50 rounded-lg md:rounded-xl font-bold text-[10px] md:text-xs border-2 border-transparent focus:border-indigo-400 outline-none text-slate-900">
                         <option value="">选择技师...</option>
-                        {staff.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+                        {scheduleStaff.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
                     </div>
                     <div className="grid grid-cols-2 gap-2 md:gap-3">
@@ -3040,7 +3249,7 @@ const App: React.FC = () => {
                     <>
                       <div className="flex justify-between items-start">
                          <div className="w-12 h-12 md:w-14 md:h-14 bg-indigo-50 rounded-xl md:rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm"><Clock size={20} className="md:w-6 md:h-6"/></div>
-                         <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${selectedAppt.status==='confirmed'?'bg-indigo-100 text-indigo-600':selectedAppt.status==='completed'?'bg-emerald-100 text-emerald-600':'bg-slate-100 text-slate-600'}`}>
+                         <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${selectedAppt.status==='confirmed'?'bg-indigo-100 text-indigo-600':selectedAppt.status==='completed'?'bg-green-100 text-green-600':'bg-slate-100 text-slate-600'}`}>
                             {selectedAppt.status === 'confirmed' ? '已确认' : selectedAppt.status === 'completed' ? '已完成' : '已取消'}
                          </span>
                       </div>
@@ -3062,7 +3271,9 @@ const App: React.FC = () => {
                                  ...formState, 
                                  itemCategory: category,
                                  itemName: selectedAppt.project_name, 
-                                 amount: ''
+                                 amount: '',
+                                 cardId: '',
+                                 note: ''
                                }); 
                                openModal(`consume_${selectedAppt.customer_id}_appt_${selectedAppt.id}`); 
                                setSelectedAppt(null);
@@ -3071,6 +3282,12 @@ const App: React.FC = () => {
                            >
                              完工结算指令
                            </button>
+                         )}
+                         {selectedAppt.status==='completed' && (
+                           <div className="w-full py-3 md:py-4 bg-green-100 text-green-700 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase text-center flex items-center justify-center gap-2 border border-green-200">
+                             <CheckCircle size={16} className="md:w-5 md:h-5"/>
+                             <span>已完成结算</span>
+                           </div>
                          )}
                          
                           <button 
@@ -3157,17 +3374,26 @@ const App: React.FC = () => {
                      <p className="text-sm text-slate-500 font-bold mt-2 whitespace-pre-wrap">{customConfirm.message}</p>
                    </div>
                    <div className="flex gap-3">
-                     <button onClick={() => setCustomConfirm(null)} className="flex-1 py-3 bg-slate-100 text-slate-400 rounded-2xl font-black text-xs uppercase transition-all">
+                     <button onClick={() => { if(!isConfirmLoading) setCustomConfirm(null); }} disabled={isConfirmLoading} className="flex-1 py-3 bg-slate-100 text-slate-400 rounded-2xl font-black text-xs uppercase transition-all disabled:opacity-50">
                        取消
                      </button>
                      <button 
-                       onClick={() => {
-                         customConfirm.onConfirm();
+                       onClick={async () => {
+                         if (isConfirmLoading) return;
+                         setIsConfirmLoading(true);
+                         try {
+                           await customConfirm.onConfirm();
+                         } catch (error) {
+                           console.error('操作失败:', error);
+                         }
+                         setIsConfirmLoading(false);
                          setCustomConfirm(null);
                        }} 
-                       className="flex-1 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all"
+                       disabled={isConfirmLoading}
+                       className="flex-1 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                      >
-                       确认
+                       {isConfirmLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                       {isConfirmLoading ? '处理中...' : '确认'}
                      </button>
                    </div>
                  </div>
@@ -3178,7 +3404,21 @@ const App: React.FC = () => {
                <div className="space-y-4 md:space-y-6 text-center animate-in zoom-in-95">
                   <div className="w-12 h-12 md:w-16 md:h-16 bg-red-50 rounded-full flex items-center justify-center text-red-600 mx-auto"><AlertTriangle size={24} className="md:w-7 md:h-7"/></div>
                   <div><h3 className="text-lg md:text-xl font-black text-slate-900 mb-1 md:mb-2">确认撤销流水？</h3><p className="text-[9px] md:text-[10px] text-slate-500 font-bold uppercase tracking-widest px-4 md:px-8">撤销后对应的财务与预约状态将强制回滚，请谨慎操作。</p></div>
-                  <div className="flex gap-3 md:gap-4"><button onClick={()=>setRevokingLog(null)} className="flex-1 py-3 md:py-4 bg-slate-50 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase text-slate-400">放弃</button><button onClick={handleRevokeConfirm} className="flex-1 py-3 md:py-4 bg-red-600 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase shadow-lg active:scale-95 transition-all">立即执行</button></div>
+                  <div className="flex gap-3 md:gap-4">
+                    <button 
+                      onClick={()=>setRevokingLog(null)} 
+                      disabled={isSubmitting}
+                      className="flex-1 py-3 md:py-4 bg-slate-50 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase text-slate-400 disabled:opacity-50"
+                    >放弃</button>
+                    <button 
+                      onClick={handleRevokeConfirm} 
+                      disabled={isSubmitting}
+                      className="flex-1 py-3 md:py-4 bg-red-600 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isSubmitting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                      {isSubmitting ? '处理中...' : '立即执行'}
+                    </button>
+                  </div>
                </div>
             )}
           </div>

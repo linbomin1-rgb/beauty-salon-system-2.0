@@ -11,6 +11,7 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<Api
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
+      cache: 'no-store',
       headers: {
         'Content-Type': 'application/json',
         ...options?.headers,
@@ -63,7 +64,7 @@ export interface Appointment {
 
 export interface Transaction {
   id: string;
-  type: 'consume' | 'recharge';
+  type: 'consume' | 'recharge' | 'refund';
   customer_id: string | null;
   customer_name: string;
   customer_card_id?: string;

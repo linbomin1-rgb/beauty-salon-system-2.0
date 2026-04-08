@@ -70,7 +70,7 @@ export interface CustomerCard {
 
 export interface Transaction {
   id: string;
-  type: 'consume' | 'recharge';
+  type: 'consume' | 'recharge' | 'refund';
   customer_id: string | null;
   customer_name: string;
   customer_card_id?: string;
@@ -97,7 +97,7 @@ export interface SystemLog {
     customerCardId?: string;
     amount?: number;
     originalAmount?: number;
-    prevStatus?: string;
+    apptId?: string;
     paymentMethod?: string;
     staffId?: string;
   };

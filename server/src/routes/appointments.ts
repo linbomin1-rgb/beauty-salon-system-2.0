@@ -59,4 +59,20 @@ router.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
+router.put('/:id/status', async (req: Request, res: Response) => {
+  try {
+    const { status } = req.body;
+    const result = await dualWriteService.appointments.update(req.params.id, { status });
+    if (!result.success) {
+      return res.status(500).json({ success: false, error: result.error } as ApiResponse<null>);
+    }
+    if (!result.data) {
+      return res.status(404).json({ success: false, error: '预约不存在' } as ApiResponse<null>);
+    }
+    res.json({ success: true, data: result.data, message: '状态更新成功' } as ApiResponse<Appointment>);
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
+  }
+});
+
 export default router;

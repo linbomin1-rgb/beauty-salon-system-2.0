@@ -76,7 +76,7 @@ export interface CustomerCard {
 
 export interface Transaction {
   id: string;
-  type: 'consume' | 'recharge';
+  type: 'consume' | 'recharge' | 'refund';
   customer_id: string | null;
   customer_name: string;
   customer_card_id?: string;

@@ -52,7 +52,29 @@ function loadDatabase(): LocalDatabase {
   try {
     if (fs.existsSync(dbPath)) {
       const data = fs.readFileSync(dbPath, 'utf-8');
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      const loadedDb: LocalDatabase = {
+        staff: parsed.staff || [],
+        customers: parsed.customers || [],
+        appointments: parsed.appointments || [],
+        transactions: parsed.transactions || [],
+        promotions: parsed.promotions || [],
+        customerCards: parsed.customerCards || parsed.customer_cards || [],
+        logs: parsed.logs || parsed.system_logs || [],
+        reminders: parsed.reminders || parsed.staff_reminders || [],
+        syncStatus: parsed.syncStatus || []
+      };
+      console.log('📦 数据库加载成功:', {
+        staff: loadedDb.staff.length,
+        customers: loadedDb.customers.length,
+        appointments: loadedDb.appointments.length,
+        transactions: loadedDb.transactions.length,
+        promotions: loadedDb.promotions.length,
+        customerCards: loadedDb.customerCards.length,
+        logs: loadedDb.logs.length,
+        reminders: loadedDb.reminders.length
+      });
+      return loadedDb;
     }
   } catch (error) {
     console.error('加载数据库失败:', error);
@@ -75,8 +97,8 @@ export function initLocalDatabase() {
 
 export const localDb = {
   staff: {
-    getAll: (): Staff[] => db.staff,
-    getById: (id: string): Staff | undefined => db.staff.find(s => s.id === id),
+    getAll: (): Staff[] => db.staff || [],
+    getById: (id: string): Staff | undefined => (db.staff || []).find(s => s.id === id),
     create: (data: Staff): Staff => {
       db.staff.push(data);
       saveDatabase();
@@ -112,8 +134,8 @@ export const localDb = {
   },
 
   customers: {
-    getAll: (): Customer[] => db.customers,
-    getById: (id: string): Customer | undefined => db.customers.find(c => c.id === id),
+    getAll: (): Customer[] => db.customers || [],
+    getById: (id: string): Customer | undefined => (db.customers || []).find(c => c.id === id),
     create: (data: Customer): Customer => {
       db.customers.push(data);
       saveDatabase();
@@ -147,7 +169,7 @@ export const localDb = {
 
   appointments: {
     getAll: (filters?: { date?: string; staff_id?: string; status?: string }): Appointment[] => {
-      let result = db.appointments;
+      let result = db.appointments || [];
       if (filters?.date) {
         result = result.filter(a => a.start_time.startsWith(filters.date!));
       }
@@ -159,7 +181,7 @@ export const localDb = {
       }
       return result;
     },
-    getById: (id: string): Appointment | undefined => db.appointments.find(a => a.id === id),
+    getById: (id: string): Appointment | undefined => (db.appointments || []).find(a => a.id === id),
     create: (data: Appointment): Appointment => {
       db.appointments.push(data);
       saveDatabase();
@@ -193,7 +215,7 @@ export const localDb = {
 
   transactions: {
     getAll: (filters?: any): Transaction[] => {
-      let result = db.transactions;
+      let result = db.transactions || [];
       if (filters?.type) result = result.filter(t => t.type === filters.type);
       if (filters?.customer_id) result = result.filter(t => t.customer_id === filters.customer_id);
       if (filters?.staff_id) result = result.filter(t => t.staff_id === filters.staff_id);
@@ -217,8 +239,9 @@ export const localDb = {
   },
 
   promotions: {
-    getAll: (): Promotion[] => db.promotions,
+    getAll: (): Promotion[] => db.promotions || [],
     create: (data: Promotion): Promotion => {
+      if (!db.promotions) db.promotions = [];
       db.promotions.push(data);
       saveDatabase();
       return data;
@@ -232,12 +255,17 @@ export const localDb = {
       }
       saveDatabase();
       return data;
+    },
+    delete: (id: string): { id: string } => {
+      db.promotions = db.promotions.filter(p => p.id !== id);
+      saveDatabase();
+      return { id };
     }
   },
 
   customerCards: {
     getAll: (filters?: { customer_id?: string; promotion_id?: string }): CustomerCard[] => {
-      let result = db.customerCards;
+      let result = db.customerCards || [];
       if (filters?.customer_id) result = result.filter(c => c.customer_id === filters.customer_id);
       if (filters?.promotion_id) result = result.filter(c => c.promotion_id === filters.promotion_id);
       return result;
@@ -256,12 +284,17 @@ export const localDb = {
       }
       saveDatabase();
       return data;
+    },
+    delete: (id: string): { id: string } => {
+      db.customerCards = db.customerCards.filter(c => c.id !== id);
+      saveDatabase();
+      return { id };
     }
   },
 
   logs: {
     getAll: (filters?: any): SystemLog[] => {
-      let result = db.logs;
+      let result = db.logs || [];
       if (filters?.operator) result = result.filter(l => l.operator === filters.operator);
       if (filters?.action) result = result.filter(l => l.action === filters.action);
       return result;
@@ -285,7 +318,7 @@ export const localDb = {
 
   reminders: {
     getAll: (filters?: { staff_id?: string; status?: string; type?: string }): StaffReminder[] => {
-      let result = db.reminders;
+      let result = db.reminders || [];
       if (filters?.staff_id) result = result.filter(r => r.staff_id === filters.staff_id);
       if (filters?.status) result = result.filter(r => r.status === filters.status);
       if (filters?.type) result = result.filter(r => r.type === filters.type);

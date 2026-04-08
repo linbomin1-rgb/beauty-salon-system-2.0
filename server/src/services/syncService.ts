@@ -57,7 +57,7 @@ async function syncTable<T extends { id: string; created_at?: string; updated_at
     return result;
   }
 
-  const localData = localGetAll();
+  const localData = localGetAll() || [];
   const localMap = new Map(localData.map(item => [item.id, item]));
   const remoteMap = new Map((remoteData || []).map(item => [item.id, item]));
 

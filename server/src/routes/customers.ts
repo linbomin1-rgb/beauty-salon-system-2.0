@@ -64,4 +64,34 @@ router.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
+router.put('/:id/balance', async (req: Request, res: Response) => {
+  try {
+    const { amount, operation } = req.body;
+    if (typeof amount !== 'number' || !['add', 'subtract'].includes(operation)) {
+      return res.status(400).json({ success: false, error: '参数错误' } as ApiResponse<null>);
+    }
+    
+    const customer = await dualWriteService.customers.getById(req.params.id);
+    if (!customer) {
+      return res.status(404).json({ success: false, error: '顾客不存在' } as ApiResponse<null>);
+    }
+    
+    let newBalance = customer.balance || 0;
+    if (operation === 'add') {
+      newBalance += amount;
+    } else {
+      newBalance = Math.max(0, newBalance - amount);
+    }
+    
+    const result = await dualWriteService.customers.update(req.params.id, { balance: newBalance });
+    if (!result.success) {
+      return res.status(500).json({ success: false, error: result.error } as ApiResponse<null>);
+    }
+    
+    res.json({ success: true, data: result.data, message: '余额更新成功' } as ApiResponse<Customer>);
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
+  }
+});
+
 export default router;

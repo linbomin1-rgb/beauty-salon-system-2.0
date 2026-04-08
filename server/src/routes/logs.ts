@@ -31,4 +31,16 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
+router.put('/:id/revoke', async (req: Request, res: Response) => {
+  try {
+    const result = await dualWriteService.logs.revoke(req.params.id);
+    if (!result.success) {
+      return res.status(500).json({ success: false, error: result.error } as ApiResponse<null>);
+    }
+    res.json({ success: true, message: '日志撤销成功' } as ApiResponse<null>);
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
+  }
+});
+
 export default router;
