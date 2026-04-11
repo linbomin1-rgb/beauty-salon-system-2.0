@@ -15,7 +15,23 @@ dist-ssr
 # Environment files
 .env
 .env.local
+.env.production
 server/.env
+server/.env.production
+server/ecosystem.config.cjs
+server/ecosystem.config.js
+
+# Data files
+server/data/
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+
+# Temp files
+clear-db.js
+clear-supabase.sh
+empty-db.json
 
 # Editor directories and files
 .vscode/*

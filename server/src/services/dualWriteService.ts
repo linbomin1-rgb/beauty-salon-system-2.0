@@ -556,9 +556,27 @@ export const dualWriteService = {
         'delete',
         'customer_cards',
         { id },
-        () => localDb.customerCards.delete(id),
+        () => {
+          const transactions = localDb.transactions.getAll();
+          transactions.forEach(t => {
+            if (t.customer_card_id === id) {
+              t.customer_card_id = undefined;
+              localDb.transactions.upsert(t);
+            }
+          });
+          return localDb.customerCards.delete(id);
+        },
         async () => {
-          const { error } = await supabase!.from('customer_cards').delete().eq('id', id);
+          console.log(`[DEBUG] Deleting customer_cards id=${id} from Supabase...`);
+          const { error: updateError } = await supabase!
+            .from('transactions')
+            .update({ customer_card_id: null })
+            .eq('customer_card_id', id);
+          if (updateError) {
+            console.log(`[DEBUG] Error updating transactions: ${JSON.stringify(updateError)}`);
+          }
+          const { error, data } = await supabase!.from('customer_cards').delete().eq('id', id).select();
+          console.log(`[DEBUG] Delete result: error=${error ? JSON.stringify(error) : 'null'}, data=${JSON.stringify(data)}`);
           if (error) throw error;
           return { id };
         }

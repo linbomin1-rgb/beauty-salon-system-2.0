@@ -1,4 +1,4 @@
-module.exports = {
+module.exports = {module.exports = {
   apps: [{
     name: 'beauty-salon-server',
     script: 'dist/index.js',
@@ -7,6 +7,9 @@ module.exports = {
     env: {
       NODE_ENV: 'production',
       PORT: 3003
+    },
+  ]
+};
     }
   }]
 };

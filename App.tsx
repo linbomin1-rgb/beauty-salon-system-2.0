@@ -12,7 +12,6 @@ import {
   Minimize2, Maximize2, MousePointer2, MessageSquareText, Cake, BellOff, Gift, Tag, AlertCircle
 } from 'lucide-react';
 import { Staff, Customer, Appointment, Transaction, SystemLog, Role, Promotion, CustomerCard, StaffReminder } from './types';
-import { analyzeBusinessData } from './services/geminiService';
 import { 
   useStaff, useCustomers, useAppointments, useTransactions, 
   usePromotions, useCustomerCards, useLogs, useReminders 
@@ -224,18 +223,30 @@ const App: React.FC = () => {
   const [selectedPromoId, setSelectedPromoId] = useState<string | null>(null);
   const [isVoidingAppt, setIsVoidingAppt] = useState(false);
   const [editingTarget, setEditingTarget] = useState<Staff | null>(null);
-  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isAiShrunk, setIsAiShrunk] = useState(true);
   const [isQuickAddCustomer, setIsQuickAddCustomer] = useState(false);
   const [revokingLog, setRevokingLog] = useState<SystemLog | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
+  const [logDateFilter, setLogDateFilter] = useState<'all' | 'today' | 'yesterday' | 'custom'>('all');
+  const [customLogDate, setCustomLogDate] = useState<string>('');
 
-  // --- 表单受控状态 (统一所有业务输入) ---
+  const getSavedCredentials = () => {
+    try {
+      const saved = localStorage.getItem('savedCredentials');
+      if (saved) {
+        const { loginUser, loginPass } = JSON.parse(saved);
+        return { loginUser: loginUser || '', loginPass: loginPass || '' };
+      }
+    } catch {}
+    return { loginUser: '', loginPass: '' };
+  };
+
+  const savedCreds = getSavedCredentials();
+
   const [formState, setFormState] = useState<any>({
-    loginUser: '',
-    loginPass: '',
+    loginUser: savedCreds.loginUser,
+    loginPass: savedCreds.loginPass,
+    rememberMe: !!(savedCreds.loginUser && savedCreds.loginPass),
     custName: '',
     custPhone: '',
     custRemarks: '',
@@ -635,6 +646,14 @@ const App: React.FC = () => {
     e.preventDefault();
     const response = await apiLogin(formState.loginUser, formState.loginPass);
     if (response.success && response.data) {
+      if (formState.rememberMe) {
+        localStorage.setItem('savedCredentials', JSON.stringify({
+          loginUser: formState.loginUser,
+          loginPass: formState.loginPass
+        }));
+      } else {
+        localStorage.removeItem('savedCredentials');
+      }
       setCurrentUser(response.data as Staff);
       await addLog('登录', response.data.name || '');
     } else {
@@ -1028,21 +1047,11 @@ const App: React.FC = () => {
         if (secondaryId) await revokeTransaction(secondaryId);
       }
       await revokeLogApi(revokingLog.id);
-      await addLog('撤销', revokingLog.action);
+      await addLog('撤销', `${revokingLog.action} - ${revokingLog.detail}`);
       setRevokingLog(null);
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleAiAnalyze = async () => {
-    if (isAnalyzing) return;
-    setIsAnalyzing(true);
-    try {
-      const result = await analyzeBusinessData({ summary: stats });
-      setAiAnalysis(result);
-      setIsAiShrunk(false);
-    } catch (e) { setAiAnalysis("AI 分析服务暂时不可用。"); } finally { setIsAnalyzing(false); }
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -1084,6 +1093,10 @@ const App: React.FC = () => {
               <form onSubmit={handleLogin} className="space-y-3 md:space-y-4">
                 <input value={formState.loginUser} onChange={e=>setFormState({...formState, loginUser: e.target.value})} className="w-full p-3 md:p-4 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl md:rounded-2xl outline-none font-bold text-sm md:text-base text-slate-900" placeholder="职员账号" required />
                 <input type="password" value={formState.loginPass} onChange={e=>setFormState({...formState, loginPass: e.target.value})} className="w-full p-3 md:p-4 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl md:rounded-2xl outline-none font-bold text-sm md:text-base text-slate-900" placeholder="安全密码" required />
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" checked={formState.rememberMe || false} onChange={e=>setFormState({...formState, rememberMe: e.target.checked})} className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                  <span className="text-xs text-slate-500 font-medium">记住账号密码</span>
+                </label>
                 <button type="submit" className="w-full py-3 md:py-4 bg-slate-900 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest hover:bg-black transition-all">确认进入系统</button>
               </form>
               <div className="mt-6 md:mt-8 text-center">
@@ -1469,25 +1482,6 @@ const App: React.FC = () => {
                     </ResponsiveContainer>
                   </div>
                 </div>
-
-                {!isAiShrunk && (
-                  <div className="bg-slate-900 p-6 md:p-8 rounded-3xl md:rounded-[3rem] shadow-xl text-white flex flex-col relative overflow-hidden h-80 lg:h-auto min-h-[350px] animate-in zoom-in-95">
-                    <Zap className="absolute -top-6 -right-6 text-white/5 w-40 h-40"/>
-                    <div className="flex items-center justify-between mb-4 md:mb-6 relative z-10">
-                      <div className="flex items-center gap-2"><Sparkles className="text-indigo-400 md:w-[18px] md:h-[18px]" size={16}/><span className="text-[10px] md:text-xs font-black uppercase tracking-widest tracking-tighter">AI 智能经营顾问</span></div>
-                      <button onClick={()=>setIsAiShrunk(true)} className="p-1.5 md:p-2 hover:bg-white/10 rounded-full transition-colors"><Minimize2 size={14} className="md:w-4 md:h-4"/></button>
-                    </div>
-                    <div className="flex-1 text-[10px] md:text-xs leading-relaxed text-indigo-100 font-medium overflow-y-auto custom-scroll pr-2 mb-4 md:mb-6 relative z-10 whitespace-pre-wrap">
-                      {isAnalyzing ? (
-                        <div className="flex flex-col items-center justify-center h-full gap-2 md:gap-3 opacity-60">
-                          <div className="w-5 h-5 md:w-6 md:h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
-                          深度分析中...
-                        </div>
-                      ) : (aiAnalysis || '点击下方按钮，开始 AI 店务诊断报告。')}
-                    </div>
-                    <button onClick={handleAiAnalyze} className="w-full py-3 md:py-4 bg-white text-slate-900 rounded-xl font-black text-[9px] md:text-[10px] uppercase shadow-lg relative z-10 hover:bg-indigo-50 transition-all">重新诊断数据</button>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -2146,11 +2140,39 @@ const App: React.FC = () => {
 
           {activeTab === 'logs' && (
             <div className="bg-white rounded-2xl md:rounded-[2.5rem] border shadow-sm overflow-hidden">
+              <div className="p-2 md:p-4 border-b flex items-center gap-2 md:gap-4 bg-slate-50/50 flex-wrap">
+                <div className="flex bg-slate-200/50 p-1 rounded-lg md:rounded-xl">
+                  <button onClick={()=>setLogDateFilter('all')} className={`px-3 py-1.5 md:px-4 md:py-2 rounded-md md:rounded-lg text-[9px] md:text-xs font-bold transition-all ${logDateFilter==='all'?'bg-white shadow-sm text-indigo-600':'text-slate-500'}`}>全部</button>
+                  <button onClick={()=>setLogDateFilter('today')} className={`px-3 py-1.5 md:px-4 md:py-2 rounded-md md:rounded-lg text-[9px] md:text-xs font-bold transition-all ${logDateFilter==='today'?'bg-white shadow-sm text-indigo-600':'text-slate-500'}`}>今日</button>
+                  <button onClick={()=>setLogDateFilter('yesterday')} className={`px-3 py-1.5 md:px-4 md:py-2 rounded-md md:rounded-lg text-[9px] md:text-xs font-bold transition-all ${logDateFilter==='yesterday'?'bg-white shadow-sm text-indigo-600':'text-slate-500'}`}>昨日</button>
+                  <button onClick={()=>setLogDateFilter('custom')} className={`px-3 py-1.5 md:px-4 md:py-2 rounded-md md:rounded-lg text-[9px] md:text-xs font-bold transition-all ${logDateFilter==='custom'?'bg-white shadow-sm text-indigo-600':'text-slate-500'}`}>自定义</button>
+                </div>
+                {logDateFilter === 'custom' && (
+                  <input 
+                    type="date" 
+                    value={customLogDate}
+                    onChange={(e) => setCustomLogDate(e.target.value)}
+                    className="px-3 py-1.5 md:px-4 md:py-2 border rounded-lg text-[9px] md:text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                )}
+              </div>
               <div className="md:overflow-x-auto md:custom-scroll">
                 <table className="w-full text-left md:min-w-[700px]">
                   <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase border-b"><tr><th className="px-4 md:px-8 py-3 md:py-5">操作员</th><th className="px-4 md:px-8 py-3 md:py-5">行为</th><th className="px-4 md:px-8 py-3 md:py-5">内容</th><th className="px-4 md:px-8 py-3 md:py-5 text-right">撤销</th></tr></thead>
                   <tbody className="divide-y text-xs md:text-sm">
-                    {logs.map(l=>(
+                    {logs.filter(l => {
+                      if (logDateFilter === 'all') return true;
+                      const logDate = new Date(l.timestamp).toDateString();
+                      const today = new Date().toDateString();
+                      const yesterday = new Date(Date.now() - 86400000).toDateString();
+                      if (logDateFilter === 'today') return logDate === today;
+                      if (logDateFilter === 'yesterday') return logDate === yesterday;
+                      if (logDateFilter === 'custom' && customLogDate) {
+                        const customDate = new Date(customLogDate).toDateString();
+                        return logDate === customDate;
+                      }
+                      return true;
+                    }).map(l=>(
                       <tr key={l.id} className={`hover:bg-slate-50/50 transition-colors ${l.is_revoked?'opacity-30 line-through':''}`}>
                         <td className="px-4 md:px-8 py-3 md:py-5 font-bold text-[10px] md:text-xs text-slate-800">{l.operator}</td>
                         <td className="px-4 md:px-8 py-3 md:py-5 font-black text-indigo-600 text-[9px] md:text-[10px] uppercase">{l.action}</td>
@@ -2179,13 +2201,6 @@ const App: React.FC = () => {
             </button>
           ))}
         </nav>
-
-        {isAiShrunk && (
-          <button onClick={() => setIsAiShrunk(false)} className="fixed bottom-20 md:bottom-10 right-4 md:right-6 w-12 h-12 md:w-14 md:h-14 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-[150] group border-4 border-white overflow-hidden animate-in fade-in zoom-in">
-            <div className="absolute inset-0 bg-indigo-400 animate-ping opacity-20"></div>
-            <Sparkles size={20} className="md:w-6 md:h-6 group-hover:rotate-12 transition-transform"/>
-          </button>
-        )}
       </main>
 
       {(isModalOpen || revokingLog || selectedAppt || confirmReminderId || selectedPromoId || customConfirm || customAlert) && (
@@ -2804,16 +2819,29 @@ const App: React.FC = () => {
                                      <button 
                                        onClick={() => {
                                          const refundAmount = card.type === 'count' ? 0 : (card.balance || 0);
+                                         const cardName = card.displayText.split(' - ')[0];
                                          showConfirm(
                                            card.type === 'count' 
                                              ? '确认退卡？次卡退卡后剩余次数作废，不予退款。' 
-                                             : `确认退卡？储值卡余额 ¥${refundAmount} 将退回会员余额。`,
+                                             : `确认退卡？储值卡余额 ¥${refundAmount} 将作废，不予退款。`,
                                            async () => {
-                                             if (refundAmount > 0) {
-                                               await updateCustomerBalance(custId, refundAmount, 'add');
+                                             const result = await deleteCustomerCard(card.id);
+                                             if (result.success) {
+                                               await createTransaction({
+                                                 type: 'consume',
+                                                 customer_id: custId,
+                                                 customer_name: customers.find(c => c.id === custId)?.name || '未知',
+                                                 amount: 0,
+                                                 payment_method: 'promotion_card',
+                                                 item_name: `退卡: ${cardName}${refundAmount > 0 ? ` (余额¥${refundAmount}作废)` : ''}`,
+                                                 staff_id: currentUser?.id,
+                                               });
+                                               await addLog('退卡', `${customers.find(c => c.id === custId)?.name} - ${cardName}${refundAmount > 0 ? ` (余额¥${refundAmount}作废)` : ''}`);
+                                               await refetchCustomerCards();
+                                               showAlert('退卡成功', 'success');
+                                             } else {
+                                               showAlert('退卡失败：' + (result.error || '未知错误'));
                                              }
-                                             await deleteCustomerCard(card.id);
-                                             await addLog('退卡', `${customers.find(c => c.id === custId)?.name} - ${card.displayText.split(' - ')[0]}${refundAmount > 0 ? ` (退款¥${refundAmount})` : ''}`);
                                            },
                                            '退卡'
                                          );
@@ -3333,73 +3361,6 @@ const App: React.FC = () => {
                </div>
             )}
 
-            {!isAiShrunk && (
-               <div className="space-y-4 md:space-y-6 animate-in zoom-in-95">
-                  <div className="flex items-center justify-between">
-                     <div className="flex items-center gap-2 text-indigo-600"><Sparkles size={18} className="md:w-5 md:h-5"/><h3 className="text-lg md:text-xl font-black uppercase tracking-widest">智能经营诊断报告</h3></div>
-                     <button onClick={()=>setIsAiShrunk(true)} className="p-1.5 md:p-2 hover:bg-slate-100 rounded-lg md:rounded-xl transition-all"><Maximize2 size={14} className="md:w-4 md:h-4"/></button>
-                  </div>
-                  <div className="bg-slate-50 p-4 md:p-6 rounded-2xl md:rounded-[2rem] border max-h-80 overflow-y-auto custom-scroll">
-                     <p className="text-[10px] md:text-xs leading-relaxed text-slate-600 font-medium whitespace-pre-wrap">{isAnalyzing ? '大数据模型诊断中...' : (aiAnalysis || '点击下方按钮，激活 AI 报告。')}</p>
-                  </div>
-                  <button onClick={handleAiAnalyze} className="w-full py-3 md:py-4 bg-indigo-600 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase shadow-lg active:scale-95 transition-all">重新分析数据</button>
-               </div>
-            )}
-
-            {customAlert && (
-               <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-                 <div className="bg-white rounded-[2rem] p-6 md:p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 text-center space-y-4">
-                   <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mx-auto">
-                     <Info size={24} />
-                   </div>
-                   <div>
-                     <h3 className="text-lg font-black text-slate-900">{customAlert.title}</h3>
-                     <p className="text-sm text-slate-500 font-bold mt-2 whitespace-pre-wrap">{customAlert.message}</p>
-                   </div>
-                   <button onClick={() => setCustomAlert(null)} className="w-full py-3 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all">
-                     我知道了
-                   </button>
-                 </div>
-               </div>
-            )}
-
-            {customConfirm && (
-               <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-                 <div className="bg-white rounded-[2rem] p-6 md:p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 text-center space-y-4">
-                   <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-600 mx-auto">
-                     <AlertTriangle size={24} />
-                   </div>
-                   <div>
-                     <h3 className="text-lg font-black text-slate-900">{customConfirm.title}</h3>
-                     <p className="text-sm text-slate-500 font-bold mt-2 whitespace-pre-wrap">{customConfirm.message}</p>
-                   </div>
-                   <div className="flex gap-3">
-                     <button onClick={() => { if(!isConfirmLoading) setCustomConfirm(null); }} disabled={isConfirmLoading} className="flex-1 py-3 bg-slate-100 text-slate-400 rounded-2xl font-black text-xs uppercase transition-all disabled:opacity-50">
-                       取消
-                     </button>
-                     <button 
-                       onClick={async () => {
-                         if (isConfirmLoading) return;
-                         setIsConfirmLoading(true);
-                         try {
-                           await customConfirm.onConfirm();
-                         } catch (error) {
-                           console.error('操作失败:', error);
-                         }
-                         setIsConfirmLoading(false);
-                         setCustomConfirm(null);
-                       }} 
-                       disabled={isConfirmLoading}
-                       className="flex-1 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                     >
-                       {isConfirmLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-                       {isConfirmLoading ? '处理中...' : '确认'}
-                     </button>
-                   </div>
-                 </div>
-               </div>
-            )}
-
             {revokingLog && (
                <div className="space-y-4 md:space-y-6 text-center animate-in zoom-in-95">
                   <div className="w-12 h-12 md:w-16 md:h-16 bg-red-50 rounded-full flex items-center justify-center text-red-600 mx-auto"><AlertTriangle size={24} className="md:w-7 md:h-7"/></div>
@@ -3421,6 +3382,60 @@ const App: React.FC = () => {
                   </div>
                </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {customAlert && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2rem] p-6 md:p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 text-center space-y-4">
+            <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mx-auto">
+              <Info size={24} />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-slate-900">{customAlert.title}</h3>
+              <p className="text-sm text-slate-500 font-bold mt-2 whitespace-pre-wrap">{customAlert.message}</p>
+            </div>
+            <button onClick={() => setCustomAlert(null)} className="w-full py-3 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all">
+              我知道了
+            </button>
+          </div>
+        </div>
+      )}
+
+      {customConfirm && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2rem] p-6 md:p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 text-center space-y-4">
+            <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-600 mx-auto">
+              <AlertTriangle size={24} />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-slate-900">{customConfirm.title}</h3>
+              <p className="text-sm text-slate-500 font-bold mt-2 whitespace-pre-wrap">{customConfirm.message}</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { if(!isConfirmLoading) setCustomConfirm(null); }} disabled={isConfirmLoading} className="flex-1 py-3 bg-slate-100 text-slate-400 rounded-2xl font-black text-xs uppercase transition-all disabled:opacity-50">
+                取消
+              </button>
+              <button 
+                onClick={async () => {
+                  if (isConfirmLoading) return;
+                  setIsConfirmLoading(true);
+                  try {
+                    await customConfirm.onConfirm();
+                  } catch (error) {
+                    console.error('操作失败:', error);
+                  }
+                  setIsConfirmLoading(false);
+                  setCustomConfirm(null);
+                }} 
+                disabled={isConfirmLoading}
+                className="flex-1 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isConfirmLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                {isConfirmLoading ? '处理中...' : '确认'}
+              </button>
+            </div>
           </div>
         </div>
       )}
