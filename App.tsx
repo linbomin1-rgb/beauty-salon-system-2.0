@@ -14,7 +14,7 @@ import {
 import { Staff, Customer, Appointment, Transaction, SystemLog, Role, Promotion, CustomerCard, StaffReminder } from './types';
 import { 
   useStaff, useCustomers, useAppointments, useTransactions, 
-  usePromotions, useCustomerCards, useLogs, useReminders 
+  usePromotions, useCustomerCards, useLogs, useReminders, useProjects
 } from './hooks/useApi';
 import api from './services/api';
 
@@ -25,18 +25,8 @@ const AVAILABLE_PERMISSIONS = [
   { id: 'finance', label: '财务', icon: History },
   { id: 'promotions', label: '活动', icon: Sparkles },
   { id: 'staff', label: '员工', icon: ShieldCheck },
+  { id: 'projects', label: '项目管理', icon: Tag },
   { id: 'logs', label: '日志', icon: Settings },
-];
-
-const PROJECT_CATEGORIES = [
-  {
-    label: '美甲',
-    items: ['建构', '单色', '猫眼', '简单款', '轻奢', '复杂', '延长', '超长延长', '卸甲', '延长卸甲']
-  },
-  {
-    label: '美睫',
-    items: ['单根', '单根穿插', '小款式', '漫画', '下睫毛', '卸睫毛']
-  }
 ];
 
 const safeParse = (key: string, fallback: string) => {
@@ -142,6 +132,18 @@ const App: React.FC = () => {
     remove: deleteReminder
   } = useReminders();
   
+  const { 
+    data: projectCategories = [], 
+    loading: projectsLoading, 
+    refetch: refetchProjects,
+    createCategory,
+    updateCategory,
+    deleteCategory,
+    createItem,
+    updateItem,
+    deleteItem
+  } = useProjects();
+  
   const getDiff = (original: any, updated: any, fieldLabels: Record<string, string>) => {
     const changes: string[] = [];
     for (const key in fieldLabels) {
@@ -242,6 +244,8 @@ const App: React.FC = () => {
   };
 
   const savedCreds = getSavedCredentials();
+
+  const [selectedProjectCategory, setSelectedProjectCategory] = useState<string | null>(null);
 
   const [formState, setFormState] = useState<any>({
     loginUser: savedCreds.loginUser,
@@ -1867,6 +1871,149 @@ const App: React.FC = () => {
             </div>
           )}
 
+          {activeTab === 'projects' && currentUser?.permissions.includes('all') && (
+            <div className="space-y-6 animate-in fade-in">
+              {!selectedProjectCategory ? (
+                <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] border shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-[10px] md:text-xs font-black uppercase tracking-widest text-slate-400">项目大类管理</h3>
+                    <button 
+                      onClick={()=>setIsModalOpen('new_project_category')}
+                      className="px-4 md:px-6 py-2.5 md:py-3 bg-indigo-600 text-white rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] shadow-lg uppercase tracking-widest transition-all hover:bg-indigo-700"
+                    >
+                      添加大类
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+                    {projectCategories.map((cat, idx) => (
+                      <div 
+                        key={cat.label} 
+                        onClick={()=>setSelectedProjectCategory(cat.label)}
+                        className="bg-gradient-to-br from-indigo-50 to-purple-50 p-4 md:p-6 rounded-2xl cursor-pointer hover:shadow-lg transition-all group border border-transparent hover:border-indigo-200"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-lg md:text-xl">
+                            {idx + 1}
+                          </div>
+                          <div className="flex gap-1" onClick={e=>e.stopPropagation()}>
+                            <button 
+                              onClick={()=>{setEditingTarget({type: 'category', data: cat}); setFormState({...formState, categoryName: cat.label}); setIsModalOpen('edit_project_category');}}
+                              className="p-1.5 text-slate-300 hover:text-indigo-600 transition-all"
+                            >
+                              <Edit3 size={14}/>
+                            </button>
+                            <button 
+                              onClick={async()=>{
+                                if(confirm(`确认删除大类"${cat.label}"？这将同时删除该大类下的所有项目！`)){
+                                  const response = await api.projects.deleteCategory(cat.label);
+                                  if(response.success){
+                                    refetchProjects();
+                                    addLog('删除项目大类', cat.label);
+                                  }
+                                }
+                              }}
+                              className="p-1.5 text-slate-300 hover:text-red-500 transition-all"
+                            >
+                              <Trash2 size={14}/>
+                            </button>
+                          </div>
+                        </div>
+                        <h4 className="font-black text-slate-800 text-sm md:text-base mb-1">{cat.label}</h4>
+                        <p className="text-[10px] md:text-xs text-slate-500">{cat.items.length} 个项目</p>
+                        <div className="mt-3 flex items-center text-indigo-600 text-[10px] font-bold group-hover:translate-x-1 transition-transform">
+                          <span>点击管理</span>
+                          <ChevronRight size={12} className="ml-1"/>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {projectCategories.length === 0 && (
+                    <div className="text-center py-12 text-slate-400">
+                      <Tag size={48} className="mx-auto mb-4 opacity-30"/>
+                      <p className="text-sm">暂无项目大类</p>
+                      <p className="text-xs mt-1">点击上方按钮添加第一个大类</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] border shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={()=>setSelectedProjectCategory(null)}
+                        className="p-2 hover:bg-slate-100 rounded-lg transition-all"
+                      >
+                        <ChevronLeft size={20} className="text-slate-400"/>
+                      </button>
+                      <div>
+                        <h3 className="text-[10px] md:text-xs font-black uppercase tracking-widest text-slate-400">具体项目管理</h3>
+                        <p className="text-sm md:text-base font-black text-slate-800">{selectedProjectCategory}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={()=>setIsModalOpen('new_project_item')}
+                      className="px-4 md:px-6 py-2.5 md:py-3 bg-indigo-600 text-white rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] shadow-lg uppercase tracking-widest transition-all hover:bg-indigo-700"
+                    >
+                      添加项目
+                    </button>
+                  </div>
+                  
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-slate-100">
+                          <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase">序号</th>
+                          <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase">项目名称</th>
+                          <th className="text-right py-3 px-4 text-[10px] font-black text-slate-400 uppercase">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {projectCategories
+                          .find(c => c.label === selectedProjectCategory)
+                          ?.items.map((item, idx) => (
+                            <tr key={item} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                              <td className="py-3 px-4">
+                                <span className="w-6 h-6 bg-slate-100 rounded-lg flex items-center justify-center text-xs font-bold text-slate-500">
+                                  {idx + 1}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className="font-bold text-slate-800 text-sm">{item}</span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <button 
+                                  onClick={async()=>{
+                                    if(confirm(`确认删除项目"${item}"？`)){
+                                      const response = await api.projects.deleteItem(item);
+                                      if(response.success){
+                                        refetchProjects();
+                                        addLog('删除项目', `${selectedProjectCategory} - ${item}`);
+                                      }
+                                    }
+                                  }}
+                                  className="p-2 text-slate-300 hover:text-red-500 transition-all"
+                                >
+                                  <Trash2 size={16}/>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  {projectCategories.find(c => c.label === selectedProjectCategory)?.items.length === 0 && (
+                    <div className="text-center py-12 text-slate-400">
+                      <Tag size={48} className="mx-auto mb-4 opacity-30"/>
+                      <p className="text-sm">暂无具体项目</p>
+                      <p className="text-xs mt-1">点击上方按钮添加第一个项目</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'finance' && (
             <div className="space-y-4 md:space-y-6 animate-in fade-in">
               <div className="flex bg-slate-100 p-1 rounded-xl md:rounded-2xl mb-4 md:mb-6 w-full md:w-auto self-start">
@@ -2237,7 +2384,7 @@ const App: React.FC = () => {
                 <X size={20} />
               </div>
             </button>
-            <div className="md:hidden h-8"></div> {/* Spacer for back button on mobile */}
+            <div className="md:hidden h-8"></div>
             
             {selectedPromoId && (
               <div className="space-y-6">
@@ -2414,6 +2561,148 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 <button onClick={handleSaveStaff} className="w-full py-3 md:py-4 bg-indigo-600 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase shadow-lg tracking-widest active:scale-95 transition-all">保存档案记录</button>
+              </div>
+            )}
+
+            {/* 项目大类新增弹窗 */}
+            {isModalOpen === 'new_project_category' && (
+              <div className="space-y-4 md:space-y-6">
+                <h3 className="text-lg md:text-xl font-black text-slate-800 uppercase text-center tracking-widest">添加项目大类</h3>
+                <div className="space-y-3 md:space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2">大类名称 *</label>
+                    <input 
+                      value={formState.categoryName || ''} 
+                      onChange={e=>setFormState({...formState, categoryName: e.target.value})} 
+                      placeholder="例如：美甲、美睫、美容等" 
+                      className="w-full p-3 md:p-4 bg-slate-50 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none border-2 border-transparent focus:border-indigo-400 text-slate-900" 
+                    />
+                  </div>
+                </div>
+                <button 
+                  onClick={async()=>{
+                    if(!formState.categoryName?.trim()){
+                      setCustomAlert({message: '请输入大类名称'});
+                      return;
+                    }
+                    setIsSubmitting(true);
+                    const response = await createCategory({name: formState.categoryName.trim()});
+                    setIsSubmitting(false);
+                    if(response.success){
+                      closeModal();
+                      addLog('新增项目大类', formState.categoryName.trim());
+                      setFormState({...formState, categoryName: ''});
+                    }else{
+                      setCustomAlert({message: response.error || '添加失败'});
+                    }
+                  }}
+                  disabled={isSubmitting}
+                  className="w-full py-3 md:py-4 bg-indigo-600 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase shadow-lg tracking-widest active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {isSubmitting ? '保存中...' : '保存'}
+                </button>
+              </div>
+            )}
+
+            {/* 项目大类编辑弹窗 */}
+            {isModalOpen === 'edit_project_category' && (
+              <div className="space-y-4 md:space-y-6">
+                <h3 className="text-lg md:text-xl font-black text-slate-800 uppercase text-center tracking-widest">编辑项目大类</h3>
+                <div className="space-y-3 md:space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2">大类名称 *</label>
+                    <input 
+                      value={formState.categoryName || ''} 
+                      onChange={e=>setFormState({...formState, categoryName: e.target.value})} 
+                      placeholder="大类名称" 
+                      className="w-full p-3 md:p-4 bg-slate-50 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none border-2 border-transparent focus:border-indigo-400 text-slate-900" 
+                    />
+                  </div>
+                </div>
+                <button 
+                  onClick={async()=>{
+                    if(!formState.categoryName?.trim()){
+                      setCustomAlert({message: '请输入大类名称'});
+                      return;
+                    }
+                    setIsSubmitting(true);
+                    const oldName = editingTarget?.data?.label;
+                    const response = await updateCategory(oldName, {name: formState.categoryName.trim()});
+                    setIsSubmitting(false);
+                    if(response.success){
+                      closeModal();
+                      addLog('编辑项目大类', `${oldName} -> ${formState.categoryName.trim()}`);
+                      setFormState({...formState, categoryName: ''});
+                    }else{
+                      setCustomAlert({message: response.error || '保存失败'});
+                    }
+                  }}
+                  disabled={isSubmitting}
+                  className="w-full py-3 md:py-4 bg-indigo-600 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase shadow-lg tracking-widest active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {isSubmitting ? '保存中...' : '保存'}
+                </button>
+              </div>
+            )}
+
+            {/* 具体项目新增弹窗 */}
+            {isModalOpen === 'new_project_item' && (
+              <div className="space-y-4 md:space-y-6">
+                <h3 className="text-lg md:text-xl font-black text-slate-800 uppercase text-center tracking-widest">添加具体项目</h3>
+                <div className="space-y-3 md:space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2">所属大类 *</label>
+                    <select 
+                      value={formState.itemCategory || selectedProjectCategory || ''} 
+                      onChange={e=>setFormState({...formState, itemCategory: e.target.value})} 
+                      className="w-full p-3 md:p-4 bg-slate-50 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none border-2 border-transparent focus:border-indigo-400 text-slate-900"
+                    >
+                      <option value="">选择大类...</option>
+                      {projectCategories.map(cat => (
+                        <option key={cat.label} value={cat.label}>{cat.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2">项目名称 *</label>
+                    <input 
+                      value={formState.itemName || ''} 
+                      onChange={e=>setFormState({...formState, itemName: e.target.value})} 
+                      placeholder="例如：建构、单色、猫眼等" 
+                      className="w-full p-3 md:p-4 bg-slate-50 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none border-2 border-transparent focus:border-indigo-400 text-slate-900" 
+                    />
+                  </div>
+                </div>
+                <button 
+                  onClick={async()=>{
+                    const category = formState.itemCategory || selectedProjectCategory;
+                    if(!category){
+                      setCustomAlert({message: '请选择所属大类'});
+                      return;
+                    }
+                    if(!formState.itemName?.trim()){
+                      setCustomAlert({message: '请输入项目名称'});
+                      return;
+                    }
+                    setIsSubmitting(true);
+                    const response = await createItem({
+                      category_id: category,
+                      name: formState.itemName.trim()
+                    });
+                    setIsSubmitting(false);
+                    if(response.success){
+                      closeModal();
+                      addLog('新增项目', `${category} - ${formState.itemName.trim()}`);
+                      setFormState({...formState, itemCategory: '', itemName: ''});
+                    }else{
+                      setCustomAlert({message: response.error || '添加失败'});
+                    }
+                  }}
+                  disabled={isSubmitting}
+                  className="w-full py-3 md:py-4 bg-indigo-600 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase shadow-lg tracking-widest active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {isSubmitting ? '保存中...' : '保存'}
+                </button>
               </div>
             )}
 
@@ -3031,7 +3320,7 @@ const App: React.FC = () => {
                          className="w-full p-3 md:p-4 bg-slate-50 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm text-slate-900 outline-none border-2 border-transparent focus:border-indigo-400"
                        >
                          <option value="">选择大类...</option>
-                         {PROJECT_CATEGORIES.map(cat => (
+                         {projectCategories.map(cat => (
                            <option key={cat.label} value={cat.label}>{cat.label}</option>
                          ))}
                        </select>
@@ -3047,7 +3336,7 @@ const App: React.FC = () => {
                          className="w-full p-3 md:p-4 bg-slate-50 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm text-slate-900 outline-none border-2 border-transparent focus:border-indigo-400 disabled:opacity-50"
                        >
                          <option value="">选择项目...</option>
-                         {PROJECT_CATEGORIES.find(c => c.label === formState.itemCategory)?.items.map(item => (
+                         {projectCategories.find(c => c.label === formState.itemCategory)?.items.map(item => (
                            <option key={item} value={item}>{item}</option>
                          ))}
                        </select>
@@ -3208,7 +3497,7 @@ const App: React.FC = () => {
                           className="w-full p-2.5 md:p-3 bg-slate-50 rounded-lg md:rounded-xl font-bold text-[10px] md:text-xs border-2 border-transparent focus:border-indigo-400 outline-none text-slate-900"
                         >
                           <option value="">选择大类...</option>
-                          {PROJECT_CATEGORIES.map(cat => (
+                          {projectCategories.map(cat => (
                             <option key={cat.label} value={cat.label}>{cat.label}</option>
                           ))}
                         </select>
@@ -3222,7 +3511,7 @@ const App: React.FC = () => {
                           className="w-full p-2.5 md:p-3 bg-slate-50 rounded-lg md:rounded-xl font-bold text-[10px] md:text-xs border-2 border-transparent focus:border-indigo-400 outline-none text-slate-900 disabled:opacity-50"
                         >
                           <option value="">选择项目...</option>
-                          {PROJECT_CATEGORIES.find(c => c.label === formState.apptCategory)?.items.map(item => (
+                          {projectCategories.find(c => c.label === formState.apptCategory)?.items.map(item => (
                             <option key={item} value={item}>{item}</option>
                           ))}
                         </select>
@@ -3294,7 +3583,7 @@ const App: React.FC = () => {
                          {selectedAppt.status==='confirmed' && (
                            <button 
                              onClick={()=>{
-                               const category = PROJECT_CATEGORIES.find(cat => cat.items.includes(selectedAppt.project_name))?.label || '';
+                               const category = projectCategories.find(cat => cat.items.includes(selectedAppt.project_name))?.label || '';
                                setFormState({
                                  ...formState, 
                                  itemCategory: category,

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api, { 
   Staff, Customer, Appointment, Transaction, Promotion, 
-  CustomerCard, SystemLog, StaffReminder 
+  CustomerCard, SystemLog, StaffReminder, ProjectCategory, ProjectItem, ProjectCategoryWithItems
 } from '../services/api';
 
 interface UseApiState<T> {
@@ -428,6 +428,86 @@ export function useReminders() {
   };
 
   return { ...state, refetch: fetchAll, create, update, complete, remove };
+}
+
+export function useProjects() {
+  const [state, setState] = useState<UseApiState<ProjectCategoryWithItems[]>>({
+    data: [],
+    loading: true,
+    error: null,
+  });
+
+  const fetchAll = useCallback(async () => {
+    const response = await api.projects.getAll();
+    if (response.success) {
+      setState({ data: response.data || [], loading: false, error: null });
+    } else {
+      setState(prev => ({ ...prev, loading: false, error: response.error || '获取项目列表失败' }));
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  const createCategory = async (data: Partial<ProjectCategory>) => {
+    const response = await api.projects.createCategory(data);
+    if (response.success) {
+      await fetchAll();
+    }
+    return response;
+  };
+
+  const updateCategory = async (id: string, data: Partial<ProjectCategory>) => {
+    const response = await api.projects.updateCategory(id, data);
+    if (response.success) {
+      await fetchAll();
+    }
+    return response;
+  };
+
+  const deleteCategory = async (id: string) => {
+    const response = await api.projects.deleteCategory(id);
+    if (response.success) {
+      await fetchAll();
+    }
+    return response;
+  };
+
+  const createItem = async (data: Partial<ProjectItem>) => {
+    const response = await api.projects.createItem(data);
+    if (response.success) {
+      await fetchAll();
+    }
+    return response;
+  };
+
+  const updateItem = async (id: string, data: Partial<ProjectItem>) => {
+    const response = await api.projects.updateItem(id, data);
+    if (response.success) {
+      await fetchAll();
+    }
+    return response;
+  };
+
+  const deleteItem = async (id: string) => {
+    const response = await api.projects.deleteItem(id);
+    if (response.success) {
+      await fetchAll();
+    }
+    return response;
+  };
+
+  return { 
+    ...state, 
+    refetch: fetchAll, 
+    createCategory, 
+    updateCategory, 
+    deleteCategory,
+    createItem,
+    updateItem,
+    deleteItem
+  };
 }
 
 export { api };

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { Staff, Customer, Appointment, Transaction, Promotion, CustomerCard, SystemLog, StaffReminder } from '../types/index.js';
+import { Staff, Customer, Appointment, Transaction, Promotion, CustomerCard, SystemLog, StaffReminder, ProjectCategory, ProjectItem } from '../types/index.js';
 
 const dbPath = process.env.LOCAL_DB_PATH || './data/beauty-salon.json';
 const dbDir = path.dirname(dbPath);
@@ -23,6 +23,8 @@ interface LocalDatabase {
   customerCards: CustomerCard[];
   logs: SystemLog[];
   reminders: StaffReminder[];
+  projectCategories: ProjectCategory[];
+  projectItems: ProjectItem[];
   syncStatus: {
     id: number;
     table_name: string;
@@ -45,6 +47,28 @@ let db: LocalDatabase = {
   customerCards: [],
   logs: [],
   reminders: [],
+  projectCategories: [
+    { id: 'cat-1', name: '美甲', sort_order: 0, created_at: new Date().toISOString() },
+    { id: 'cat-2', name: '美睫', sort_order: 1, created_at: new Date().toISOString() }
+  ],
+  projectItems: [
+    { id: 'item-1', category_id: 'cat-1', name: '建构', sort_order: 0, created_at: new Date().toISOString() },
+    { id: 'item-2', category_id: 'cat-1', name: '单色', sort_order: 1, created_at: new Date().toISOString() },
+    { id: 'item-3', category_id: 'cat-1', name: '猫眼', sort_order: 2, created_at: new Date().toISOString() },
+    { id: 'item-4', category_id: 'cat-1', name: '简单款', sort_order: 3, created_at: new Date().toISOString() },
+    { id: 'item-5', category_id: 'cat-1', name: '轻奢', sort_order: 4, created_at: new Date().toISOString() },
+    { id: 'item-6', category_id: 'cat-1', name: '复杂', sort_order: 5, created_at: new Date().toISOString() },
+    { id: 'item-7', category_id: 'cat-1', name: '延长', sort_order: 6, created_at: new Date().toISOString() },
+    { id: 'item-8', category_id: 'cat-1', name: '超长延长', sort_order: 7, created_at: new Date().toISOString() },
+    { id: 'item-9', category_id: 'cat-1', name: '卸甲', sort_order: 8, created_at: new Date().toISOString() },
+    { id: 'item-10', category_id: 'cat-1', name: '延长卸甲', sort_order: 9, created_at: new Date().toISOString() },
+    { id: 'item-11', category_id: 'cat-2', name: '单根', sort_order: 0, created_at: new Date().toISOString() },
+    { id: 'item-12', category_id: 'cat-2', name: '单根穿插', sort_order: 1, created_at: new Date().toISOString() },
+    { id: 'item-13', category_id: 'cat-2', name: '小款式', sort_order: 2, created_at: new Date().toISOString() },
+    { id: 'item-14', category_id: 'cat-2', name: '漫画', sort_order: 3, created_at: new Date().toISOString() },
+    { id: 'item-15', category_id: 'cat-2', name: '下睫毛', sort_order: 4, created_at: new Date().toISOString() },
+    { id: 'item-16', category_id: 'cat-2', name: '卸睫毛', sort_order: 5, created_at: new Date().toISOString() }
+  ],
   syncStatus: []
 };
 
@@ -62,6 +86,8 @@ function loadDatabase(): LocalDatabase {
         customerCards: parsed.customerCards || parsed.customer_cards || [],
         logs: parsed.logs || parsed.system_logs || [],
         reminders: parsed.reminders || parsed.staff_reminders || [],
+        projectCategories: parsed.projectCategories || [],
+        projectItems: parsed.projectItems || [],
         syncStatus: parsed.syncStatus || []
       };
       console.log('📦 数据库加载成功:', {
@@ -72,7 +98,9 @@ function loadDatabase(): LocalDatabase {
         promotions: loadedDb.promotions.length,
         customerCards: loadedDb.customerCards.length,
         logs: loadedDb.logs.length,
-        reminders: loadedDb.reminders.length
+        reminders: loadedDb.reminders.length,
+        projectCategories: loadedDb.projectCategories.length,
+        projectItems: loadedDb.projectItems.length
       });
       return loadedDb;
     }
@@ -338,6 +366,67 @@ export const localDb = {
       }
       saveDatabase();
       return data;
+    }
+  },
+
+  projectCategories: {
+    getAll: (): ProjectCategory[] => {
+      return (db.projectCategories || []).sort((a, b) => a.sort_order - b.sort_order);
+    },
+    getById: (id: string): ProjectCategory | undefined => {
+      return (db.projectCategories || []).find(c => c.id === id);
+    },
+    create: (data: ProjectCategory): ProjectCategory => {
+      if (!db.projectCategories) db.projectCategories = [];
+      db.projectCategories.push(data);
+      saveDatabase();
+      return data;
+    },
+    update: (id: string, data: Partial<ProjectCategory>): ProjectCategory | undefined => {
+      const index = (db.projectCategories || []).findIndex(c => c.id === id);
+      if (index === -1) return undefined;
+      db.projectCategories[index] = { ...db.projectCategories[index], ...data };
+      saveDatabase();
+      return db.projectCategories[index];
+    },
+    delete: (id: string): boolean => {
+      const index = (db.projectCategories || []).findIndex(c => c.id === id);
+      if (index === -1) return false;
+      db.projectCategories.splice(index, 1);
+      db.projectItems = (db.projectItems || []).filter(item => item.category_id !== id);
+      saveDatabase();
+      return true;
+    }
+  },
+
+  projectItems: {
+    getAll: (filters?: { category_id?: string }): ProjectItem[] => {
+      let result = db.projectItems || [];
+      if (filters?.category_id) result = result.filter(i => i.category_id === filters.category_id);
+      return result.sort((a, b) => a.sort_order - b.sort_order);
+    },
+    getById: (id: string): ProjectItem | undefined => {
+      return (db.projectItems || []).find(i => i.id === id);
+    },
+    create: (data: ProjectItem): ProjectItem => {
+      if (!db.projectItems) db.projectItems = [];
+      db.projectItems.push(data);
+      saveDatabase();
+      return data;
+    },
+    update: (id: string, data: Partial<ProjectItem>): ProjectItem | undefined => {
+      const index = (db.projectItems || []).findIndex(i => i.id === id);
+      if (index === -1) return undefined;
+      db.projectItems[index] = { ...db.projectItems[index], ...data };
+      saveDatabase();
+      return db.projectItems[index];
+    },
+    delete: (id: string): boolean => {
+      const index = (db.projectItems || []).findIndex(i => i.id === id);
+      if (index === -1) return false;
+      db.projectItems.splice(index, 1);
+      saveDatabase();
+      return true;
     }
   },
 

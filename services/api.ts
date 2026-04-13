@@ -120,6 +120,28 @@ export interface StaffReminder {
   created_at: string;
 }
 
+export interface ProjectCategory {
+  id: string;
+  name: string;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ProjectItem {
+  id: string;
+  category_id: string;
+  name: string;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ProjectCategoryWithItems {
+  label: string;
+  items: string[];
+}
+
 export const api = {
   staff: {
     getAll: () => fetchApi<Staff[]>('/staff'),
@@ -291,6 +313,35 @@ export const api = {
     }),
     complete: (id: string) => fetchApi<StaffReminder>(`/reminders/${id}/complete`, { method: 'PUT' }),
     delete: (id: string) => fetchApi<void>(`/reminders/${id}`, { method: 'DELETE' }),
+  },
+
+  projects: {
+    getAll: () => fetchApi<ProjectCategoryWithItems[]>('/projects/all'),
+    getCategories: () => fetchApi<ProjectCategory[]>('/projects/categories'),
+    getCategoryById: (id: string) => fetchApi<ProjectCategory>(`/projects/categories/${id}`),
+    createCategory: (data: Partial<ProjectCategory>) => fetchApi<ProjectCategory>('/projects/categories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    updateCategory: (id: string, data: Partial<ProjectCategory>) => fetchApi<ProjectCategory>(`/projects/categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    deleteCategory: (id: string) => fetchApi<void>(`/projects/categories/${id}`, { method: 'DELETE' }),
+    getItems: (categoryId?: string) => {
+      const query = categoryId ? `?category_id=${categoryId}` : '';
+      return fetchApi<ProjectItem[]>(`/projects/items${query}`);
+    },
+    getItemById: (id: string) => fetchApi<ProjectItem>(`/projects/items/${id}`),
+    createItem: (data: Partial<ProjectItem>) => fetchApi<ProjectItem>('/projects/items', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    updateItem: (id: string, data: Partial<ProjectItem>) => fetchApi<ProjectItem>(`/projects/items/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    deleteItem: (id: string) => fetchApi<void>(`/projects/items/${id}`, { method: 'DELETE' }),
   },
 };
 

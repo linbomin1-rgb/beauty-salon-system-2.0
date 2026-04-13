@@ -14,6 +14,7 @@ import promotionRoutes from './routes/promotions.js';
 import customerCardRoutes from './routes/customerCards.js';
 import logRoutes from './routes/logs.js';
 import reminderRoutes from './routes/reminders.js';
+import projectRoutes from './routes/projects.js';
 
 dotenv.config();
 initDatabases();
@@ -114,6 +115,7 @@ app.use('/api/promotions', promotionRoutes);
 app.use('/api/customer-cards', customerCardRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/reminders', reminderRoutes);
+app.use('/api/projects', projectRoutes);
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../../dist/index.html'));
