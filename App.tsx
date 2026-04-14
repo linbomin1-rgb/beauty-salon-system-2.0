@@ -84,7 +84,8 @@ const App: React.FC = () => {
     create: createAppointment,
     update: updateAppointment,
     remove: deleteAppointment,
-    updateStatus: updateAppointmentStatus
+    updateStatus: updateAppointmentStatus,
+    checkConflicts: checkAppointmentConflicts
   } = useAppointments();
   
   const { 
@@ -3540,6 +3541,22 @@ const App: React.FC = () => {
                     if(finalCustId && formState.apptStaffId && formState.apptProject && endH > startH){
                       const [y, m, d] = formState.apptDate.split('-').map(Number);
                       const apptDateTime = new Date(y, m - 1, d, startH);
+                      const duration = endH - startH;
+                      
+                      const conflictCheck = await checkAppointmentConflicts({
+                        staff_id: formState.apptStaffId,
+                        start_time: apptDateTime.toISOString(),
+                        duration: duration
+                      });
+                      
+                      if (conflictCheck.success && conflictCheck.data?.hasConflicts) {
+                        const conflictList = conflictCheck.data.conflicts.map(c => 
+                          `${c.customer_name} (${formatTime(c.start_hour)}-${formatTime(c.start_hour + c.duration)})`
+                        ).join('、');
+                        const staffName = staff.find(s => s.id === formState.apptStaffId)?.name || '该员工';
+                        return showAlert('预约时间冲突', `${staffName}在该时间段已有预约：${conflictList}，请调整时间或更换员工。`);
+                      }
+                      
                       await createAppointment({
                         customer_id: finalCustId,
                         customer_name: finalCustName,
@@ -3547,7 +3564,7 @@ const App: React.FC = () => {
                         project_name: formState.apptProject,
                         start_time: apptDateTime.toISOString(),
                         start_hour: startH,
-                        duration: endH - startH,
+                        duration: duration,
                         status: 'confirmed',
                         note: formState.apptNote
                       });

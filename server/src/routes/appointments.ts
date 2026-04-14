@@ -4,6 +4,59 @@ import { Appointment, ApiResponse } from '../types/index.js';
 
 const router = Router();
 
+router.post('/check-conflicts', async (req: Request, res: Response) => {
+  try {
+    const { staff_id, start_time, duration, exclude_id } = req.body;
+    
+    if (!staff_id || !start_time || !duration) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '缺少必要参数',
+        conflicts: [] 
+      } as ApiResponse<any>);
+    }
+
+    const startDate = new Date(start_time);
+    const dateStr = startDate.toISOString().split('T')[0];
+    const startHour = startDate.getHours() + startDate.getMinutes() / 60;
+    const endHour = startHour + duration;
+
+    const allAppointments = await dualWriteService.appointments.getAll({ date: dateStr });
+    
+    const staffAppointments = allAppointments.filter(a => 
+      a.staff_id === staff_id && 
+      a.status !== 'cancelled' &&
+      a.status !== 'completed' &&
+      a.id !== exclude_id
+    );
+
+    const conflicts: Appointment[] = [];
+    
+    for (const appt of staffAppointments) {
+      const apptStartHour = appt.start_hour;
+      const apptEndHour = appt.start_hour + appt.duration;
+      
+      if (startHour < apptEndHour && endHour > apptStartHour) {
+        conflicts.push(appt);
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      data: {
+        hasConflicts: conflicts.length > 0,
+        conflicts: conflicts
+      }
+    } as ApiResponse<any>);
+  } catch (error: any) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      conflicts: [] 
+    } as ApiResponse<any>);
+  }
+});
+
 router.get('/', async (req: Request, res: Response) => {
   try {
     const { date, staff_id, status, start_date, end_date } = req.query;

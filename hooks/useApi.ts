@@ -174,7 +174,11 @@ export function useAppointments() {
     return response;
   };
 
-  return { ...state, refetch: fetchAll, create, update, remove, updateStatus };
+  const checkConflicts = async (data: { staff_id: string; start_time: string; duration: number; exclude_id?: string }) => {
+    return await api.appointments.checkConflicts(data);
+  };
+
+  return { ...state, refetch: fetchAll, create, update, remove, updateStatus, checkConflicts };
 }
 
 export function useTransactions() {

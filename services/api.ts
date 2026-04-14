@@ -208,6 +208,11 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ status }),
     }),
+    checkConflicts: (data: { staff_id: string; start_time: string; duration: number; exclude_id?: string }) => 
+      fetchApi<{ hasConflicts: boolean; conflicts: Appointment[] }>('/appointments/check-conflicts', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   },
 
   transactions: {
