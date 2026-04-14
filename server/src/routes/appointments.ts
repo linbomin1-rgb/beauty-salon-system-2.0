@@ -6,9 +6,9 @@ const router = Router();
 
 router.post('/check-conflicts', async (req: Request, res: Response) => {
   try {
-    const { staff_id, start_time, duration, exclude_id } = req.body;
+    const { staff_id, start_time, start_hour, duration, exclude_id } = req.body;
     
-    if (!staff_id || !start_time || !duration) {
+    if (!staff_id || duration === undefined) {
       return res.status(400).json({ 
         success: false, 
         error: '缺少必要参数',
@@ -16,10 +16,22 @@ router.post('/check-conflicts', async (req: Request, res: Response) => {
       } as ApiResponse<any>);
     }
 
-    const startDate = new Date(start_time);
-    const dateStr = startDate.toISOString().split('T')[0];
-    const startHour = startDate.getHours() + startDate.getMinutes() / 60;
-    const endHour = startHour + duration;
+    let dateStr: string;
+    let newStartHour: number;
+    
+    if (start_time) {
+      const startDate = new Date(start_time);
+      dateStr = startDate.toISOString().split('T')[0];
+      newStartHour = start_hour !== undefined ? start_hour : startDate.getHours() + startDate.getMinutes() / 60;
+    } else {
+      return res.status(400).json({ 
+        success: false, 
+        error: '缺少start_time参数',
+        conflicts: [] 
+      } as ApiResponse<any>);
+    }
+    
+    const newEndHour = newStartHour + duration;
 
     const allAppointments = await dualWriteService.appointments.getAll({ date: dateStr });
     
@@ -36,7 +48,7 @@ router.post('/check-conflicts', async (req: Request, res: Response) => {
       const apptStartHour = appt.start_hour;
       const apptEndHour = appt.start_hour + appt.duration;
       
-      if (startHour < apptEndHour && endHour > apptStartHour) {
+      if (newStartHour < apptEndHour && newEndHour > apptStartHour) {
         conflicts.push(appt);
       }
     }

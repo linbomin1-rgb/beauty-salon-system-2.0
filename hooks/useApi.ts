@@ -174,7 +174,7 @@ export function useAppointments() {
     return response;
   };
 
-  const checkConflicts = async (data: { staff_id: string; start_time: string; duration: number; exclude_id?: string }) => {
+  const checkConflicts = async (data: { staff_id: string; start_time: string; start_hour: number; duration: number; exclude_id?: string }) => {
     return await api.appointments.checkConflicts(data);
   };
 

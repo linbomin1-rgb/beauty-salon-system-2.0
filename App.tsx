@@ -3546,6 +3546,7 @@ const App: React.FC = () => {
                       const conflictCheck = await checkAppointmentConflicts({
                         staff_id: formState.apptStaffId,
                         start_time: apptDateTime.toISOString(),
+                        start_hour: startH,
                         duration: duration
                       });
                       
